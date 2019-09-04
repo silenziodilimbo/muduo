@@ -1,6 +1,6 @@
-#include "examples/protobuf/codec/dispatcher.h"
+#include "dispatcher.h"
 
-#include "examples/protobuf/codec/query.pb.h"
+#include <examples/protobuf/codec/query.pb.h>
 
 #include <iostream>
 

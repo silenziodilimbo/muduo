@@ -1,5 +1,5 @@
-#include "examples/hub/pubsub.h"
-#include "examples/hub/codec.h"
+#include "pubsub.h"
+#include "codec.h"
 
 using namespace muduo;
 using namespace muduo::net;

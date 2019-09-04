@@ -1,9 +1,9 @@
-#include "examples/asio/chat/codec.h"
+#include "codec.h"
 
-#include "muduo/base/Logging.h"
-#include "muduo/base/Mutex.h"
-#include "muduo/net/EventLoop.h"
-#include "muduo/net/TcpServer.h"
+#include <muduo/base/Logging.h>
+#include <muduo/base/Mutex.h>
+#include <muduo/net/EventLoop.h>
+#include <muduo/net/TcpServer.h>
 
 #include <set>
 #include <stdio.h>
@@ -68,7 +68,7 @@ class ChatServer : noncopyable
                        const string& message,
                        Timestamp)
   {
-    ConnectionListPtr connections = getConnectionList();
+    ConnectionListPtr connections = getConnectionList();;
     for (ConnectionList::iterator it = connections->begin();
         it != connections->end();
         ++it)

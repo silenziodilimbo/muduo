@@ -1,4 +1,4 @@
-#include "examples/procmon/plot.h"
+#include "plot.h"
 #include <algorithm>
 
 #include <math.h>

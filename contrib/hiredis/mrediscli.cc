@@ -1,7 +1,7 @@
-#include "contrib/hiredis/Hiredis.h"
+#include "Hiredis.h"
 
-#include "muduo/base/Logging.h"
-#include "muduo/net/EventLoop.h"
+#include <muduo/base/Logging.h>
+#include <muduo/net/EventLoop.h>
 
 #include <string>
 

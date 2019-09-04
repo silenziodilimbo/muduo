@@ -1,7 +1,7 @@
-#include "examples/simple/daytime/daytime.h"
+#include "daytime.h"
 
-#include "muduo/base/Logging.h"
-#include "muduo/net/EventLoop.h"
+#include <muduo/base/Logging.h>
+#include <muduo/net/EventLoop.h>
 
 using namespace muduo;
 using namespace muduo::net;

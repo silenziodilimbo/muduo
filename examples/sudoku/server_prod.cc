@@ -1,14 +1,14 @@
-#include "examples/sudoku/sudoku.h"
+#include "sudoku.h"
 
-#include "muduo/base/Atomic.h"
-#include "muduo/base/Logging.h"
-#include "muduo/base/Thread.h"
-#include "muduo/base/ThreadPool.h"
-#include "muduo/net/EventLoop.h"
-#include "muduo/net/EventLoopThread.h"
-#include "muduo/net/InetAddress.h"
-#include "muduo/net/TcpServer.h"
-#include "muduo/net/inspect/Inspector.h"
+#include <muduo/base/Atomic.h>
+#include <muduo/base/Logging.h>
+#include <muduo/base/Thread.h>
+#include <muduo/base/ThreadPool.h>
+#include <muduo/net/EventLoop.h>
+#include <muduo/net/EventLoopThread.h>
+#include <muduo/net/InetAddress.h>
+#include <muduo/net/TcpServer.h>
+#include <muduo/net/inspect/Inspector.h>
 
 #include <boost/circular_buffer.hpp>
 
@@ -18,7 +18,7 @@
 using namespace muduo;
 using namespace muduo::net;
 
-#include "examples/sudoku/stat.h"
+#include "stat.h"
 
 class SudokuServer : noncopyable
 {

@@ -1,5 +1,5 @@
-#include "examples/memcached/server/Session.h"
-#include "examples/memcached/server/MemcacheServer.h"
+#include "Session.h"
+#include "MemcacheServer.h"
 
 #ifdef HAVE_TCMALLOC
 #include <gperftools/malloc_extension.h>

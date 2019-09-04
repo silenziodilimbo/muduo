@@ -1,12 +1,12 @@
-#include "contrib/thrift/ThriftConnection.h"
+#include "ThriftConnection.h"
 
 #include <boost/bind.hpp>
 
-#include "muduo/base/Logging.h"
+#include <muduo/base/Logging.h>
 
 #include <thrift/transport/TTransportException.h>
 
-#include "contrib/thrift/ThriftServer.h"
+#include "ThriftServer.h"
 
 using namespace muduo;
 using namespace muduo::net;

@@ -1,7 +1,7 @@
-#include "examples/simple/time/time.h"
+#include "time.h"
 
-#include "muduo/base/Logging.h"
-#include "muduo/net/Endian.h"
+#include <muduo/base/Logging.h>
+#include <muduo/net/Endian.h>
 
 using namespace muduo;
 using namespace muduo::net;
