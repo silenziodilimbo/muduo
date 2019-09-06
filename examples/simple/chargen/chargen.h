@@ -6,28 +6,27 @@
 // RFC 864
 class ChargenServer
 {
- public:
-  ChargenServer(muduo::net::EventLoop* loop,
-                const muduo::net::InetAddress& listenAddr,
-                bool print = false);
+public:
+	ChargenServer(muduo::net::EventLoop* loop,
+		const muduo::net::InetAddress& listenAddr,
+		bool print = false);
+	void start();
+private:
+	void onConnection(const muduo::net::TcpConnectionPtr& conn);
 
-  void start();
+	void onMessage(const muduo::net::TcpConnectionPtr& conn,
+		muduo::net::Buffer* buf,
+		muduo::Timestamp time);
 
- private:
-  void onConnection(const muduo::net::TcpConnectionPtr& conn);
+	void onWriteComplete(const muduo::net::TcpConnectionPtr& conn);
+	void printThroughput();
 
-  void onMessage(const muduo::net::TcpConnectionPtr& conn,
-                 muduo::net::Buffer* buf,
-                 muduo::Timestamp time);
+	muduo::net::TcpServer server_;
 
-  void onWriteComplete(const muduo::net::TcpConnectionPtr& conn);
-  void printThroughput();
-
-  muduo::net::TcpServer server_;
-
-  muduo::string message_;
-  int64_t transferred_;
-  muduo::Timestamp startTime_;
+	muduo::string message_; // 固定的一串数组,发给客户端
+	int64_t transferred_;
+	muduo::Timestamp startTime_;
 };
 
-#endif  // MUDUO_EXAMPLES_SIMPLE_CHARGEN_CHARGEN_H
+
+#endif  //MUDUO_EXAMPLES_SIMPLE_CHARGEN_CHARGEN_H
