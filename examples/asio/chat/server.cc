@@ -24,11 +24,11 @@ public:
 			std::bind(&ChatServer::onConnection, this, _1));
 		// 这个回调与以往不通
 		// 以往是把本class的onMessage注册给server_
-		// 这里把LengthHeaderCodec::onMessage()注册给了server_
-		// 当服务器server_收到消息后,会调用LengthHeaderCodec::onMessage(),来处理消息
-		// 而LengthHeaderCodec::onMessage()本身也会接受一个回调
-		// 这个回调就是ChatServer::onStringMessage(),来广播消息.绑定是发生在初始化列表,初始化了一个codec_对象,把这个cb当作构造的参数传入的
-		// 流程就是,server_收到消息,触发回调LengthHeaderCodec::onMessage()解析消息,触发回调ChatServer::onStringMessage()广播消息
+		// 这里把LengthHeaderCodec::onMessage()注册给了server_  在初始化列表中注册的
+		// 然后向codec_注册了ChatServer::onStringMessage()
+		// 等于说,server_收到消息,先触发codec_的回调onMessage,由codec_负责解析消息,(一系列的操作,主要是while循环取buf,当body完整后,调用回调onStringMessage)
+		// 再把完整的消息回调给ChatServer::onStringMessage
+		// codec_是一个间接层,
 		server_.setMessageCallback(
 			std::bind(&LengthHeaderCodec::onMessage, &codec_, _1, _2, _3));
 	}
@@ -59,7 +59,7 @@ private:
 	}
 
 	// 收到消息
-	// 直接广播
+	// 直接广播,遍历connections_发送
 	void onStringMessage(const TcpConnectionPtr&,
 		const string& message,
 		Timestamp)
@@ -77,3 +77,21 @@ private:
 	LengthHeaderCodec codec_; // 编译编码器,用于加工消息
 	ConnectionList connections_; // 保存所有连接,用于广播
 };
+
+int main(int argc, char* argv[])
+{
+	LOG_INFO << "pid=" << getpid();
+	if (argc > 1)
+	{
+		EventLoop loop;
+		uint16_t port = static_cast<uint16_t>(atoi(argv[1]));
+		InetAddress serverAddr(port);
+		ChatServer server(&loop, serverAddr);
+		server.start();
+		loop.loop();
+	}
+	else
+	{
+		printf("Usage: %s port\n", argv[0]);
+	}
+}
