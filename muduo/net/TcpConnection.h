@@ -62,11 +62,14 @@ class TcpConnection : noncopyable,
   bool getTcpInfo(struct tcp_info*) const;
   string getTcpInfoString() const;
 
-  // void send(string&& message); // C++11
+  // void send(string&& message); // C++11 // 三个重载
+  // 返回值是void,意味者用户不必关心调用send时成功发送了多少字节,muduo库保证发送给对方
+  // 非阻塞,用户只要send(),就不会阻塞,即使TCP发送窗口满了
+  // 线程安全,源字的,多个线程同时调用send也不会混叠或交织,但是多个线程的先后顺序不确定
   void send(const void* message, int len);
-  void send(const StringPiece& message);
-  // void send(Buffer&& message); // C++11
-  void send(Buffer* message);  // this one will swap data
+  void send(const StringPiece& message); // StringPiece是Google发明的专门用于传递字符串参数的class,可以用来发送const char*和const std::string&
+  // void send(Buffer&& message); // C++11 直接利用std::move 利用右值引用来避免拷贝
+  void send(Buffer* message);  // this one will swap data 参数为指针,而不是const引用.因为函数可能使用swap来高效地交换数据,类似右值引用(上面那个)
   void shutdown(); // NOT thread safe, no simultaneous calling
   // void shutdownAndForceCloseAfter(double seconds); // NOT thread safe, no simultaneous calling
   void forceClose();

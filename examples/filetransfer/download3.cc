@@ -43,6 +43,8 @@ void onConnection(const TcpConnectionPtr& conn)
       LOG_INFO << "FileServer - no such file";
     }
   }
+  // RAII,fp和conn的生命周期绑定
+  // 不需要在else中,判断是否关闭fp了
 }
 
 void onWriteComplete(const TcpConnectionPtr& conn)
@@ -56,6 +58,8 @@ void onWriteComplete(const TcpConnectionPtr& conn)
   }
   else
   {
+	  // RAII,fp和conn的生命周期绑定
+	  // 不需要手动关闭fp了
     conn->shutdown();
     LOG_INFO << "FileServer - done";
   }

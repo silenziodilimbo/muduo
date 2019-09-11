@@ -191,6 +191,7 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
   }
 }
 
+// 关闭"写"方向的连接,而不关闭"读"方面的连接
 void TcpConnection::shutdown()
 {
   // FIXME: use compare and swap
@@ -198,6 +199,7 @@ void TcpConnection::shutdown()
   {
     setState(kDisconnecting);
     // FIXME: shared_from_this()?
+	// 调用TcpConnection::shutdownInLoop()
     loop_->runInLoop(std::bind(&TcpConnection::shutdownInLoop, this));
   }
 }
@@ -205,10 +207,10 @@ void TcpConnection::shutdown()
 void TcpConnection::shutdownInLoop()
 {
   loop_->assertInLoopThread();
-  if (!channel_->isWriting())
+  if (!channel_->isWriting()) // 如果已经写完了
   {
     // we are not writing
-    socket_->shutdownWrite();
+    socket_->shutdownWrite(); // 关闭"写"的连接
   }
 }
 
@@ -365,12 +367,16 @@ void TcpConnection::handleRead(Timestamp receiveTime)
   }
 }
 
+// 该函数用于强行关闭连接
+// 一般而言,当对方read()到0字节之后,会主动关闭连接(无论是shutdownWrite()还是close())
+// 但如果对方故意不关闭,muduo的连接就会一直半开着,消耗系统资源
+// 所以必要时可以调用handleWrite来强行关闭连接
 void TcpConnection::handleWrite()
 {
   loop_->assertInLoopThread();
   if (channel_->isWriting())
   {
-    ssize_t n = sockets::write(channel_->fd(),
+    size_t n = sockets::write(channel_->fd(),
                                outputBuffer_.peek(),
                                outputBuffer_.readableBytes());
     if (n > 0)
