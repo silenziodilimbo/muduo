@@ -83,7 +83,9 @@ int main(int argc, char* argv[])
 	LOG_INFO << "pid = " << getpid();
 	if (argc > 2)
 	{
-		EventLoopThread loopThread; // 这是另一个线程,不同于main线程
+		// 开辟一个线程.一个loop,用这个loop来启动ChatClient
+		// 这是另一个线程,不同于main线程
+		EventLoopThread loopThread; 
 		uint16_t port = static_cast<uint16_t>(atoi(argv[2]));
 		InetAddress serverAddr(argv[1], port);
 
