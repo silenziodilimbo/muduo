@@ -149,14 +149,23 @@ void ProtobufCodec::onMessage(const TcpConnectionPtr& conn,
 google::protobuf::Message* ProtobufCodec::createMessage(const std::string& typeName)
 {
   google::protobuf::Message* message = NULL;
+	// 先根据typeName获得类型的Descriptor
+	// 1．用DescriptorPool::generated_pool()找到一个DescriptorPool对象
+	// 它包含了程序编译的时候所链接链接的全部Protobuf Message types。
+	// 2. descriptor是再根据FindMessageTypeByName查找Descriptor
   const google::protobuf::Descriptor* descriptor =
     google::protobuf::DescriptorPool::generated_pool()->FindMessageTypeByName(typeName);
   if (descriptor)
   {
+		// 再利用类型的Descriptor拿到类型注册的instance
+		// 3. 根据generated_factory找到 MessageFactory 对象 
+		// 它能创建程序编译的时候所链接的全部Protobuf Message types。
+		// 4. prototype就是用GetPrototype找到具体Message type的default instance
     const google::protobuf::Message* prototype =
       google::protobuf::MessageFactory::generated_factory()->GetPrototype(descriptor);
     if (prototype)
     {
+			// 创建对象
       message = prototype->New();
     }
   }
