@@ -22,15 +22,22 @@ class QueryServer : noncopyable
   QueryServer(EventLoop* loop,
               const InetAddress& listenAddr)
   : server_(loop, listenAddr, "QueryServer"),
+		// onUnknownMessage dispatcher_收到消息, 分发消息
     dispatcher_(std::bind(&QueryServer::onUnknownMessage, this, _1, _2, _3)),
+		// onProtobufMessage codec_解码之后, 触发Dispatcher的回调
     codec_(std::bind(&ProtobufDispatcher::onProtobufMessage, &dispatcher_, _1, _2, _3))
   {
+		// dispatcher_ 注册具体的消息回调, Dispatcher分发消息后调用
     dispatcher_.registerMessageCallback<muduo::Query>(
         std::bind(&QueryServer::onQuery, this, _1, _2, _3));
+		// dispatcher_ 注册具体的消息回调, Dispatcher分发消息后调用
     dispatcher_.registerMessageCallback<muduo::Answer>(
         std::bind(&QueryServer::onAnswer, this, _1, _2, _3));
+		// 业务
+		// onConnection server_收到消息, 触发QueryServer的回调
     server_.setConnectionCallback(
         std::bind(&QueryServer::onConnection, this, _1));
+		// onMessage server_收到消息, 献给codec解码
     server_.setMessageCallback(
         std::bind(&ProtobufCodec::onMessage, &codec_, _1, _2, _3));
   }
@@ -41,6 +48,7 @@ class QueryServer : noncopyable
   }
 
  private:
+	 // 建立连接
   void onConnection(const TcpConnectionPtr& conn)
   {
     LOG_INFO << conn->localAddress().toIpPort() << " -> "
@@ -48,6 +56,8 @@ class QueryServer : noncopyable
         << (conn->connected() ? "UP" : "DOWN");
   }
 
+	// 由dispatcher_调用, 分发消息后调用这个回调
+	// 直接断开连接
   void onUnknownMessage(const TcpConnectionPtr& conn,
                         const MessagePtr& message,
                         Timestamp)
@@ -56,6 +66,8 @@ class QueryServer : noncopyable
     conn->shutdown();
   }
 
+	// 由dispatcher_调用, 分发消息后调用这个回调
+	// 就是回一个消息
   void onQuery(const muduo::net::TcpConnectionPtr& conn,
                const QueryPtr& message,
                muduo::Timestamp)
@@ -72,6 +84,7 @@ class QueryServer : noncopyable
     conn->shutdown();
   }
 
+	// 由dispatcher_调用, 分发消息后调用这个回调
   void onAnswer(const muduo::net::TcpConnectionPtr& conn,
                 const AnswerPtr& message,
                 muduo::Timestamp)

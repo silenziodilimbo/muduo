@@ -19,20 +19,27 @@
 using namespace muduo;
 using namespace muduo::net;
 
+// 打包
 void ProtobufCodec::fillEmptyBuffer(Buffer* buf, const google::protobuf::Message& message)
 {
   // buf->retrieveAll();
   assert(buf->readableBytes() == 0);
 
+	// 取typeName
   const std::string& typeName = message.GetTypeName();
+	// nameLen
   int32_t nameLen = static_cast<int32_t>(typeName.size()+1);
+	// 写入nameLen
   buf->appendInt32(nameLen);
+	// 写入typeName
   buf->append(typeName.c_str(), nameLen);
 
   // code copied from MessageLite::SerializeToArray() and MessageLite::SerializePartialToArray().
   GOOGLE_DCHECK(message.IsInitialized()) << InitializationErrorMessage("serialize", message);
 
+	// data长度
   int byte_size = message.ByteSize();
+	// 确定一下是否还有这么多WritableBytes
   buf->ensureWritableBytes(byte_size);
 
   uint8_t* start = reinterpret_cast<uint8_t*>(buf->beginWrite());

@@ -84,9 +84,15 @@ class ProtobufDispatcher
     }
   }
 
+	// 一个模板成员函数
+	// 接受注册任意消息类型T的回调
+	// 每注册一个回调, 就会有一个CallbackT的实体
+	// 内部负责down cast
   template<typename T>
-  void registerMessageCallback(const typename CallbackT<T>::ProtobufMessageTCallback& callback)
+	void registerMessageCallback(const typename CallbackT<T>::ProtobufMessageTCallback& callback)
   {
+		// 创建一个模板化的派生类CallbackT<T>, callback做参数
+		// 这样消息的类型信息就保存在了CallbackT<T>中, 做down cast就简单了
     std::shared_ptr<CallbackT<T> > pd(new CallbackT<T>(callback));
     callbacks_[T::descriptor()] = pd;
   }

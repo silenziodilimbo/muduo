@@ -31,9 +31,12 @@ void EchoServer::onConnection(const TcpConnectionPtr& conn)
 
   if (conn->connected())
   {
+		// 当前连接数++
     ++numConnected_;
+		// 如果超过了软最大连接数
     if (numConnected_ > kMaxConnections_)
     {
+			// 踢掉连接
       conn->shutdown();
       conn->forceCloseWithDelay(3.0);  // > round trip of the whole Internet.
     }

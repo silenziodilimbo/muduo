@@ -21,7 +21,9 @@ class EchoServer
                  muduo::Timestamp time);
 
   muduo::net::TcpServer server_;
-  int numConnected_; // should be atomic_int
+	// 当前连接数, 用于在onConnection判断
+  int numConnected_; // should be atomic_int, 为了多线程安全
+	// 最大连接数
   const int kMaxConnections_;
 };
 
