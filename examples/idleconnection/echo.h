@@ -31,6 +31,10 @@ class EchoServer
 
   typedef std::weak_ptr<muduo::net::TcpConnection> WeakTcpConnectionPtr;
 
+  // 这就是格子
+  // shared_ptr
+  // 8个格子, 就是8个桶
+  // 析构负责断开链接
   struct Entry : public muduo::copyable
   {
     explicit Entry(const WeakTcpConnectionPtr& weakConn)
@@ -41,14 +45,19 @@ class EchoServer
     ~Entry()
     {
       muduo::net::TcpConnectionPtr conn = weakConn_.lock();
+	  // 检查weak_ptr
+	  // 如果链接还存在, 断开链接
       if (conn)
       {
         conn->shutdown();
       }
     }
 
+	// 保存Tcp链接的weak_ptr
     WeakTcpConnectionPtr weakConn_;
   };
+
+  // 这个结构本身是个shared_ptr
   typedef std::shared_ptr<Entry> EntryPtr;
   typedef std::weak_ptr<Entry> WeakEntryPtr;
   typedef std::unordered_set<EntryPtr> Bucket;

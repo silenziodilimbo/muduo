@@ -9,6 +9,11 @@ using namespace muduo;
 using namespace muduo::net;
 
 // RFC 862
+// 这是链表版本timing wheel
+// 一个包含了所有conn的链表
+// conn每次收到消息,就把自己放在链表的最后面
+// 起一个定时器, 从链表的begin开始遍历, 已经超时的链接, 直接断开
+// 找到第一个没有超时的, 就break遍历, return.(因为已经排序了)
 class EchoServer
 {
  public:
@@ -113,6 +118,7 @@ void EchoServer::onTimer()
     {
       Node* n = boost::any_cast<Node>(conn->getMutableContext());
       double age = timeDifference(now, n->lastReceiveTime);
+      // 大于10秒, 超时断开
       if (age > idleSeconds_)
       {
         if (conn->connected())
@@ -129,6 +135,7 @@ void EchoServer::onTimer()
       }
       else
       {
+        // 找到第一个没有超时的, 就break遍历
         break;
       }
       ++it;
