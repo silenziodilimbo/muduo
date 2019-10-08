@@ -37,14 +37,18 @@ class MultiplexServer
       oldCounter_(0),
       startTime_(Timestamp::now())
   {
+    // 当client connection到达或断开时候, 向backend发出通知
     server_.setConnectionCallback(
         std::bind(&MultiplexServer::onClientConnection, this, _1));
+    // 当client connection收到数据时候, 把数据连同connection id一同发给backend
     server_.setMessageCallback(
         std::bind(&MultiplexServer::onClientMessage, this, _1, _2, _3));
     server_.setThreadNum(numThreads);
 
+    // 如果backend connection断开连接, 则断开所有client connections
     backend_.setConnectionCallback(
         std::bind(&MultiplexServer::onBackendConnection, this, _1));
+    // 当backend connection收到数据时候, 辨别数据是发送给哪个client connection, 并执行相应的转发操作
     backend_.setMessageCallback(
         std::bind(&MultiplexServer::onBackendMessage, this, _1, _2, _3));
     backend_.enableRetry();

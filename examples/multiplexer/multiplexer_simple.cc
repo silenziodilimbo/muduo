@@ -28,12 +28,16 @@ class MultiplexServer : noncopyable
     : server_(loop, listenAddr, "MultiplexServer"),
       backend_(loop, backendAddr, "MultiplexBackend")
   {
+    // 当client connection到达或断开时候, 向backend发出通知
     server_.setConnectionCallback(
         std::bind(&MultiplexServer::onClientConnection, this, _1));
+    // 当client connection收到数据时候, 把数据连同connection id一同发给backend
     server_.setMessageCallback(
         std::bind(&MultiplexServer::onClientMessage, this, _1, _2, _3));
+    // 如果backend connection断开连接, 则断开所有client connections
     backend_.setConnectionCallback(
         std::bind(&MultiplexServer::onBackendConnection, this, _1));
+    // 当backend connection收到数据时候, 辨别数据是发送给哪个client connection, 并执行相应的转发操作
     backend_.setMessageCallback(
         std::bind(&MultiplexServer::onBackendMessage, this, _1, _2, _3));
     backend_.enableRetry();
@@ -69,6 +73,9 @@ class MultiplexServer : noncopyable
       }
       else
       {
+        // 这里就使用了TcpConnection的boost::any context_;
+        // 把id存进去
+        // onClientMessage再从TcpConnection对象中取出来
         conn->setContext(id);
         char buf[256];
         snprintf(buf, sizeof(buf), "CONN %d FROM %s IS UP\r\n",
@@ -114,6 +121,7 @@ class MultiplexServer : noncopyable
   {
     if (!conn->getContext().empty())
     {
+      // 从TcpConnection的boost::any context_中取出id
       int id = boost::any_cast<int>(conn->getContext());
       sendBackendBuffer(id, buf);
     }
@@ -246,6 +254,7 @@ class MultiplexServer : noncopyable
   TcpClient backend_;
   // MutexLock mutex_;
   TcpConnectionPtr backendConn_;
+  // 保存从id到client connection的映射
   std::map<int, TcpConnectionPtr> clientConns_;
   std::queue<int> availIds_;
 };

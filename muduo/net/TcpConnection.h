@@ -151,6 +151,12 @@ class TcpConnection : noncopyable,
   size_t highWaterMark_;
   Buffer inputBuffer_;
   Buffer outputBuffer_; // FIXME: use list<Buffer> as output buffer.
+
+  // 这是TcpConnection的context环境
+  // 可以用于保存与connection绑定的任意数据
+  // 比方说connectionid, 最后数据到达时间, userid等等
+  // 这样客户不必继承TcpConnection就能attach自己的状态
+  // 而且也用不着TcpConnectionFactory了
   boost::any context_;
   // FIXME: creationTime_, lastReceiveTime_
   //        bytesReceived_, bytesSent_
