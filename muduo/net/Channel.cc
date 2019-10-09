@@ -63,6 +63,9 @@ void Channel::remove()
   loop_->removeChannel(this);
 }
 
+// 由EventLoop调用
+// 根据revents_的值分别调用不同的用户回调
+// 具体的分发逻辑在handleEventWithGuard里
 void Channel::handleEvent(Timestamp receiveTime)
 {
   std::shared_ptr<void> guard;

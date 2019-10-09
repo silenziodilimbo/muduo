@@ -113,6 +113,8 @@ class EventLoop : noncopyable
       abortNotInLoopThread();
     }
   }
+  // 检测当前线程是否已经创建了其他EventLoop对象
+  // 在构造函数中, 记住了本对象所在的线程threadId_, 也是IO线程
   bool isInLoopThread() const { return threadId_ == CurrentThread::tid(); }
   // bool callingPendingFunctors() const { return callingPendingFunctors_; }
   bool eventHandling() const { return eventHandling_; }
@@ -126,6 +128,7 @@ class EventLoop : noncopyable
   boost::any* getMutableContext()
   { return &context_; }
 
+  // 如果当前线程不是IO线程的话, 就会返回NULL
   static EventLoop* getEventLoopOfCurrentThread();
 
  private:
@@ -137,7 +140,7 @@ class EventLoop : noncopyable
 
   typedef std::vector<Channel*> ChannelList;
 
-  bool looping_; /* atomic */
+  bool looping_; /* atomic */ // 用于标识是否正在looping中
   std::atomic<bool> quit_;
   bool eventHandling_; /* atomic */
   bool callingPendingFunctors_; /* atomic */

@@ -30,6 +30,8 @@ class EventLoop;
 /// This class doesn't own the file descriptor.
 /// The file descriptor could be a socket,
 /// an eventfd, a timerfd, or a signalfd
+// IO事件回调的分发器dispatcher
+// 通过它可以把其他一些现成的网络库融入muduo的event loop中
 class Channel : noncopyable
 {
  public:
@@ -39,6 +41,7 @@ class Channel : noncopyable
   Channel(EventLoop* loop, int fd);
   ~Channel();
 
+  // 根据revents_的值分别调用不同的用户回调
   void handleEvent(Timestamp receiveTime);
   void setReadCallback(ReadEventCallback cb)
   { readCallback_ = std::move(cb); }
@@ -84,6 +87,7 @@ class Channel : noncopyable
   static string eventsToString(int fd, int ev);
 
   void update();
+  // handleEvent调用, 具体的分发逻辑
   void handleEventWithGuard(Timestamp receiveTime);
 
   static const int kNoneEvent;
@@ -92,8 +96,8 @@ class Channel : noncopyable
 
   EventLoop* loop_;
   const int  fd_;
-  int        events_;
-  int        revents_; // it's the received event types of epoll or poll
+  int        events_; // IO事件, 由用户设置
+  int        revents_; // 目前活动的事件, 由EventLoop/Poller设置; it's the received event types of epoll or poll
   int        index_; // used by Poller.
   bool       logHup_;
 

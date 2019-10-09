@@ -24,6 +24,9 @@
 using namespace muduo;
 using namespace muduo::net;
 
+// 匿名命名空间
+// internal链接属性, 自动using, 而且作用域限制在当前文件内
+// 一定程度上替代static变量
 namespace
 {
 __thread EventLoop* t_loopInThisThread = 0;
@@ -56,6 +59,7 @@ class IgnoreSigPipe
 IgnoreSigPipe initObj;
 }  // namespace
 
+// 如果当前线程不是IO线程的话, 就会返回NULL
 EventLoop* EventLoop::getEventLoopOfCurrentThread()
 {
   return t_loopInThisThread;
@@ -67,7 +71,7 @@ EventLoop::EventLoop()
     eventHandling_(false),
     callingPendingFunctors_(false),
     iteration_(0),
-    threadId_(CurrentThread::tid()),
+    threadId_(CurrentThread::tid()), // 保存创建对象的线程, 用于确保one loop per thread
     poller_(Poller::newDefaultPoller(this)),
     timerQueue_(new TimerQueue(this)),
     wakeupFd_(createEventfd()),
@@ -75,13 +79,16 @@ EventLoop::EventLoop()
     currentActiveChannel_(NULL)
 {
   LOG_DEBUG << "EventLoop created " << this << " in thread " << threadId_;
-  if (t_loopInThisThread)
+  if (t_loopInThisThread) 
   {
+    // 出现了两个EventLoop
     LOG_FATAL << "Another EventLoop " << t_loopInThisThread
               << " exists in this thread " << threadId_;
   }
   else
   {
+    // 默认为0, 利用了匿名namespace
+    // 第一次会把它改为非0, 防止重复创建
     t_loopInThisThread = this;
   }
   wakeupChannel_->setReadCallback(
@@ -97,7 +104,7 @@ EventLoop::~EventLoop()
   wakeupChannel_->disableAll();
   wakeupChannel_->remove();
   ::close(wakeupFd_);
-  t_loopInThisThread = NULL;
+  t_loopInThisThread = NULL;  // 一个静态的线程id
 }
 
 void EventLoop::loop()
@@ -108,6 +115,7 @@ void EventLoop::loop()
   quit_ = false;  // FIXME: what if someone calls quit() before loop() ?
   LOG_TRACE << "EventLoop " << this << " start looping";
 
+  // 开始循环
   while (!quit_)
   {
     activeChannels_.clear();
@@ -129,6 +137,7 @@ void EventLoop::loop()
     doPendingFunctors();
   }
 
+  //如果到了这里, 就是循环结束了
   LOG_TRACE << "EventLoop " << this << " stop looping";
   looping_ = false;
 }
