@@ -29,20 +29,25 @@ PollPoller::~PollPoller() = default;
 Timestamp PollPoller::poll(int timeoutMs, ChannelList* activeChannels)
 {
   // XXX pollfds_ shouldn't change
+  // 通过poll查询是否有活跃的文件描述符
   int numEvents = ::poll(&*pollfds_.begin(), pollfds_.size(), timeoutMs);
   int savedErrno = errno;
   Timestamp now(Timestamp::now());
   if (numEvents > 0)
   {
+    // 返回值大于0表示对应个数活跃的文件描述符
+    // 调用函数，获取活跃的文件描述符。
     LOG_TRACE << numEvents << " events happened";
     fillActiveChannels(numEvents, activeChannels);
   }
   else if (numEvents == 0)
   {
+    //无任何活跃的文件描述符
     LOG_TRACE << " nothing happened";
   }
   else
   {
+    //出错
     if (savedErrno != EINTR)
     {
       errno = savedErrno;
@@ -55,12 +60,16 @@ Timestamp PollPoller::poll(int timeoutMs, ChannelList* activeChannels)
 void PollPoller::fillActiveChannels(int numEvents,
                                     ChannelList* activeChannels) const
 {
+  // 遍历pollfds_
   for (PollFdList::const_iterator pfd = pollfds_.begin();
       pfd != pollfds_.end() && numEvents > 0; ++pfd)
   {
+    //循环取值
     if (pfd->revents > 0)
     {
-      --numEvents;
+      // 找出有活动事件的fd, 把它对应的channel 填入 activeChannels
+      // 有事件发生时，操作系统会给struct pollfd的revents赋值，值大于0
+      --numEvents; // 效率
       ChannelMap::const_iterator ch = channels_.find(pfd->fd);
       assert(ch != channels_.end());
       Channel* channel = ch->second;
@@ -70,6 +79,9 @@ void PollPoller::fillActiveChannels(int numEvents,
       activeChannels->push_back(channel);
     }
   }
+  // 注意
+  // 这里不能调用实际的Handler, 因为Handler可能会添加或删除CHannel, 进而破坏遍历, 很危险
+  // 也是因为单一职责原则, 只IO, 不分发
 }
 
 void PollPoller::updateChannel(Channel* channel)
@@ -79,6 +91,8 @@ void PollPoller::updateChannel(Channel* channel)
   if (channel->index() < 0)
   {
     // a new one, add to pollfds_
+    // index小于0表示是一个新的Channel，
+    // 添加到管理队列
     assert(channels_.find(channel->fd()) == channels_.end());
     struct pollfd pfd;
     pfd.fd = channel->fd();
@@ -87,28 +101,33 @@ void PollPoller::updateChannel(Channel* channel)
     pollfds_.push_back(pfd);
     int idx = static_cast<int>(pollfds_.size())-1;
     channel->set_index(idx);
-    channels_[pfd.fd] = channel;
+    channels_[pfd.fd] = channel; // channel和fd绑定, 存入Map中
   }
   else
   {
     // update existing one
-    assert(channels_.find(channel->fd()) != channels_.end());
-    assert(channels_[channel->fd()] == channel);
+    // index大于0表示队列中存在此通道，所以进行更新。
+    assert(channels_.find(channel->fd()) != channels_.end()); // 校验
+    assert(channels_[channel->fd()] == channel); // 校验
     int idx = channel->index();
     assert(0 <= idx && idx < static_cast<int>(pollfds_.size()));
     struct pollfd& pfd = pollfds_[idx];
     assert(pfd.fd == channel->fd() || pfd.fd == -channel->fd()-1);
     pfd.fd = channel->fd();
-    pfd.events = static_cast<short>(channel->events());
+    pfd.events = static_cast<short>(channel->events()) // 用户请求事件保存;
     pfd.revents = 0;
     if (channel->isNoneEvent())
     {
       // ignore this pollfd
+      // 如果某个Channel暂时不关心任何事件, 就置为-1, 让poll忽略此项
+      // 如果通道被设置为无任何事件，则将fd设置为负数，
+      // 至于为什么至于设置，下文会解释
       pfd.fd = -channel->fd()-1;
     }
   }
 }
 
+// 移除通道
 void PollPoller::removeChannel(Channel* channel)
 {
   Poller::assertInLoopThread();
@@ -124,14 +143,20 @@ void PollPoller::removeChannel(Channel* channel)
   assert(n == 1); (void)n;
   if (implicit_cast<size_t>(idx) == pollfds_.size()-1)
   {
+    //如果index正好是列表的结尾，则直接pop释放。
     pollfds_.pop_back();
   }
   else
   {
+    //如果删除的struct pollfd不是列表的结尾，
+    //出于效率考虑，直接将要删除的pollfd与尾部的
+    //pollfd交换，然后释放
     int channelAtEnd = pollfds_.back().fd;
     iter_swap(pollfds_.begin()+idx, pollfds_.end()-1);
     if (channelAtEnd < 0)
     {
+      //因为在updateChannel时，是将通道进行取反-1，
+      //所以这里原样取回。
       channelAtEnd = -channelAtEnd-1;
     }
     channels_[channelAtEnd]->set_index(idx);

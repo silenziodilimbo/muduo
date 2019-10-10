@@ -32,8 +32,11 @@ class PollPoller : public Poller
   PollPoller(EventLoop* loop);
   ~PollPoller() override;
 
+  // 查询出活跃的通道
   Timestamp poll(int timeoutMs, ChannelList* activeChannels) override;
+  // 更新通道
   void updateChannel(Channel* channel) override;
+  // 移除通道，一般在调用此方法之前，都会调用Channel->disableAll()
   void removeChannel(Channel* channel) override;
 
  private:
@@ -41,7 +44,7 @@ class PollPoller : public Poller
                           ChannelList* activeChannels) const;
 
   typedef std::vector<struct pollfd> PollFdList;
-  PollFdList pollfds_;
+  PollFdList pollfds_; //fd的集合
 };
 
 }  // namespace net

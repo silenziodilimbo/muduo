@@ -101,9 +101,9 @@ class EventLoop : noncopyable
 
   // internal usage
   void wakeup();
-  void updateChannel(Channel* channel);
-  void removeChannel(Channel* channel);
-  bool hasChannel(Channel* channel);
+  void updateChannel(Channel* channel); // 由channel调用, 用于向本loop添加/删除自己(事件), 实际上调用了poller的updateChannel
+  void removeChannel(Channel* channel); // 由channel调用, 用于向本loop添加/删除自己(事件), 实际上调用了poller的removeChannel
+  bool hasChannel(Channel* channel); // 由channel调用, 用于向本loop添加/删除自己(事件)
 
   // pid_t threadId() const { return threadId_; }
   void assertInLoopThread()

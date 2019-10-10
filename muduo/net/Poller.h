@@ -38,14 +38,21 @@ class Poller : noncopyable
 
   /// Polls the I/O events.
   /// Must be called in the loop thread.
+  // 核心功能
+  // 查询出活跃的通道
+  // 调用poll获得当前活动的IO事件
+  // 然后填充调用方传入的activeChannels
+  // 并返回poll return的时刻
   virtual Timestamp poll(int timeoutMs, ChannelList* activeChannels) = 0;
 
   /// Changes the interested I/O events.
   /// Must be called in the loop thread.
+  // 更新通道
   virtual void updateChannel(Channel* channel) = 0;
 
   /// Remove the channel, when it destructs.
   /// Must be called in the loop thread.
+  //移除通道，一般在调用此方法之前，都会调用Channel->disableAll()
   virtual void removeChannel(Channel* channel) = 0;
 
   virtual bool hasChannel(Channel* channel) const;
@@ -59,7 +66,7 @@ class Poller : noncopyable
 
  protected:
   typedef std::map<int, Channel*> ChannelMap;
-  ChannelMap channels_;
+  ChannelMap channels_; // fd与Channel的映射
 
  private:
   EventLoop* ownerLoop_;

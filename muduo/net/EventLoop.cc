@@ -118,7 +118,11 @@ void EventLoop::loop()
   // 开始循环
   while (!quit_)
   {
-    activeChannels_.clear();
+    // 一轮循环开始
+
+    // 把之前的List清空
+    activeChannels_.clear(); 
+    //获取新的List
     pollReturnTime_ = poller_->poll(kPollTimeMs, &activeChannels_);
     ++iteration_;
     if (Logger::logLevel() <= Logger::TRACE)
@@ -127,6 +131,7 @@ void EventLoop::loop()
     }
     // TODO sort channel by priority
     eventHandling_ = true;
+    // 轮询这个List, 交给Handler
     for (Channel* channel : activeChannels_)
     {
       currentActiveChannel_ = channel;
