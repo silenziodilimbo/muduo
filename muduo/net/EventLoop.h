@@ -142,7 +142,7 @@ class EventLoop : noncopyable
 
   bool looping_; /* atomic */ // 用于标识是否正在looping中
   std::atomic<bool> quit_;
-  bool eventHandling_; /* atomic */
+  bool eventHandling_;  // 锁, 防止执行remove /* atomic */
   bool callingPendingFunctors_; /* atomic */
   int64_t iteration_;
   const pid_t threadId_;

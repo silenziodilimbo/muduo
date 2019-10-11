@@ -72,7 +72,7 @@ EventLoop::EventLoop()
     callingPendingFunctors_(false),
     iteration_(0),
     threadId_(CurrentThread::tid()), // 保存创建对象的线程, 用于确保one loop per thread
-    poller_(Poller::newDefaultPoller(this)),
+    poller_(Poller::newDefaultPoller(this)), // 创建一个polloer
     timerQueue_(new TimerQueue(this)),
     wakeupFd_(createEventfd()),
     wakeupChannel_(new Channel(this, wakeupFd_)),
@@ -122,15 +122,15 @@ void EventLoop::loop()
 
     // 把之前的List清空
     activeChannels_.clear(); 
-    //获取新的List
+    // 获取新的List
     pollReturnTime_ = poller_->poll(kPollTimeMs, &activeChannels_);
-    ++iteration_;
+    ++iteration_; // todo这是干嘛的
     if (Logger::logLevel() <= Logger::TRACE)
     {
       printActiveChannels();
     }
     // TODO sort channel by priority
-    eventHandling_ = true;
+    eventHandling_ = true; // 锁, 防止执行remove /* atomic */
     // 轮询这个List, 交给Handler
     for (Channel* channel : activeChannels_)
     {
