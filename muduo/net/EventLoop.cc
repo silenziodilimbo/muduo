@@ -31,8 +31,10 @@ namespace
 {
 __thread EventLoop* t_loopInThisThread = 0;
 
+// poll默认时间
 const int kPollTimeMs = 10000;
 
+// 创建时间fd
 int createEventfd()
 {
   int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -45,6 +47,7 @@ int createEventfd()
 }
 
 #pragma GCC diagnostic ignored "-Wold-style-cast"
+// 屏蔽SigPipe信号，防止中断退出
 class IgnoreSigPipe
 {
  public:
@@ -73,12 +76,14 @@ EventLoop::EventLoop()
     iteration_(0),
     threadId_(CurrentThread::tid()), // 保存创建对象的线程, 用于确保one loop per thread
     poller_(Poller::newDefaultPoller(this)), // 创建一个polloer
-    timerQueue_(new TimerQueue(this)),
-    wakeupFd_(createEventfd()),
-    wakeupChannel_(new Channel(this, wakeupFd_)),
+    timerQueue_(new TimerQueue(this)), // 创建一个定时器队列
+    wakeupFd_(createEventfd()), // 创建一个唤醒事件fd
+    wakeupChannel_(new Channel(this, wakeupFd_)), // 创建一个唤醒事件通道
     currentActiveChannel_(NULL)
 {
   LOG_DEBUG << "EventLoop created " << this << " in thread " << threadId_;
+  // 设置当前loop的地址，
+  // 若已有就不设置。
   if (t_loopInThisThread) 
   {
     // 出现了两个EventLoop
@@ -91,12 +96,16 @@ EventLoop::EventLoop()
     // 第一次会把它改为非0, 防止重复创建
     t_loopInThisThread = this;
   }
+  // 设置唤醒通道的回调读，FIXME_huqibing 这里设计应该有其它用途
   wakeupChannel_->setReadCallback(
       std::bind(&EventLoop::handleRead, this));
   // we are always reading the wakeupfd
   wakeupChannel_->enableReading();
 }
 
+// 析构 
+// 关闭句柄
+// 将t_loopInThisThread置位空地址
 EventLoop::~EventLoop()
 {
   LOG_DEBUG << "EventLoop " << this << " of thread " << threadId_
@@ -111,6 +120,8 @@ void EventLoop::loop()
 {
   assert(!looping_);
   assertInLoopThread();
+
+  // 设置状态位
   looping_ = true;
   quit_ = false;  // FIXME: what if someone calls quit() before loop() ?
   LOG_TRACE << "EventLoop " << this << " start looping";
@@ -135,10 +146,11 @@ void EventLoop::loop()
     for (Channel* channel : activeChannels_)
     {
       currentActiveChannel_ = channel;
-      currentActiveChannel_->handleEvent(pollReturnTime_);
+      currentActiveChannel_->handleEvent(pollReturnTime_); // 传入当前时间
     }
     currentActiveChannel_ = NULL;
     eventHandling_ = false;
+    // 处理下队列中是否有需要执行的回调方法
     doPendingFunctors();
   }
 
@@ -149,16 +161,22 @@ void EventLoop::loop()
 
 void EventLoop::quit()
 {
+  // 状态位
   quit_ = true;
   // There is a chance that loop() just executes while(!quit_) and exits,
   // then EventLoop destructs, then we are accessing an invalid object.
   // Can be fixed using mutex_ in both places.
+  // 如果在当前线程, 就唤醒下fd?
   if (!isInLoopThread())
   {
     wakeup();
   }
 }
 
+// 在EventLoop中执行回调函数
+// a、如果Loop在自身当前线程，直接执行
+// b、如果Loop在别的线程，则将回调放到Loop的
+//    方法队列，保证回调在Loop所在的线程中执行   
 void EventLoop::runInLoop(Functor cb)
 {
   if (isInLoopThread())
@@ -173,6 +191,7 @@ void EventLoop::runInLoop(Functor cb)
 
 void EventLoop::queueInLoop(Functor cb)
 {
+  // 将回调函数放到待执行队列
   {
   MutexLockGuard lock(mutex_);
   pendingFunctors_.push_back(std::move(cb));
@@ -190,6 +209,7 @@ size_t EventLoop::queueSize() const
   return pendingFunctors_.size();
 }
 
+// 将执行回调添加到定时器队列
 TimerId EventLoop::runAt(Timestamp time, TimerCallback cb)
 {
   return timerQueue_->addTimer(std::move(cb), time, 0.0);
@@ -207,24 +227,32 @@ TimerId EventLoop::runEvery(double interval, TimerCallback cb)
   return timerQueue_->addTimer(std::move(cb), time, interval);
 }
 
+// 取消某个定时器队列
 void EventLoop::cancel(TimerId timerId)
 {
   return timerQueue_->cancel(timerId);
 }
 
+// 更新通道
 void EventLoop::updateChannel(Channel* channel)
 {
+  // Channel所在的Loop要和当前Loop保持一致
   assert(channel->ownerLoop() == this);
   assertInLoopThread();
   poller_->updateChannel(channel);
 }
 
+// 移除通道
 void EventLoop::removeChannel(Channel* channel)
 {
   assert(channel->ownerLoop() == this);
   assertInLoopThread();
   if (eventHandling_)
   {
+    // 如果当前在处理通道事件时，要删除Channel
+    // 则这个删除事件一定时当前处理的HandleEvent发起的
+    // 也就是说currentActiveChannel_ 和当前通道是同一个，
+    // 而且通道就在活跃的通道列表中
     assert(currentActiveChannel_ == channel ||
         std::find(activeChannels_.begin(), activeChannels_.end(), channel) == activeChannels_.end());
   }
@@ -245,6 +273,12 @@ void EventLoop::abortNotInLoopThread()
             << ", current thread id = " <<  CurrentThread::tid();
 }
 
+// 这里用到的一个设计就是添加了
+// 回调函数到队列，通过往fd写个
+// 标志来通知，让阻塞的Poll立马
+// 返回去执行回调函数。
+
+// 唤醒下，写一个8字节数据
 void EventLoop::wakeup()
 {
   uint64_t one = 1;
@@ -255,6 +289,7 @@ void EventLoop::wakeup()
   }
 }
 
+// 读下8字节数据
 void EventLoop::handleRead()
 {
   uint64_t one = 1;
@@ -267,9 +302,12 @@ void EventLoop::handleRead()
 
 void EventLoop::doPendingFunctors()
 {
+  // 处理队列中的回调函数
   std::vector<Functor> functors;
+  // FIXME_hqb 状态标志的作用是什么
   callingPendingFunctors_ = true;
 
+  // 交换出来，避免调用时长时间占用锁
   {
   MutexLockGuard lock(mutex_);
   functors.swap(pendingFunctors_);
@@ -282,6 +320,7 @@ void EventLoop::doPendingFunctors()
   callingPendingFunctors_ = false;
 }
 
+// 输出下活跃的通道对应的事件，用于调试
 void EventLoop::printActiveChannels() const
 {
   for (const Channel* channel : activeChannels_)

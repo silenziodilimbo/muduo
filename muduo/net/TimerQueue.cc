@@ -180,15 +180,24 @@ void TimerQueue::handleRead()
   reset(expired, now);
 }
 
+// 关键函数
+// 从timers_中移除已到期的Timer, 并通过vector返回它们
 std::vector<TimerQueue::Entry> TimerQueue::getExpired(Timestamp now)
 {
   assert(timers_.size() == activeTimers_.size());
+  // 暂时存放已过期
   std::vector<Entry> expired;
+  // sentry哨兵值
   Entry sentry(now, reinterpret_cast<Timer*>(UINTPTR_MAX));
+  // sentry让set::lower_bound返回的是第一个未到期的Timer的迭代器
+  // 所以assert是<而非=<
   TimerList::iterator end = timers_.lower_bound(sentry);
   assert(end == timers_.end() || now < end->first);
+  // 拷贝已经到期的到expired
   std::copy(timers_.begin(), end, back_inserter(expired));
+  // 删除这写已过期的
   timers_.erase(timers_.begin(), end);
+
 
   for (const Entry& it : expired)
   {

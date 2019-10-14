@@ -49,12 +49,14 @@ class EventLoop : noncopyable
   ///
   /// Must be called in the same thread as creation of the object.
   ///
+  // 开始loop
   void loop();
 
   /// Quits loop.
   ///
   /// This is not 100% thread safe, if you call through a raw pointer,
   /// better to call through shared_ptr<EventLoop> for 100% safety.
+  // 退出loop
   void quit();
 
   ///
@@ -141,8 +143,8 @@ class EventLoop : noncopyable
   typedef std::vector<Channel*> ChannelList;
 
   bool looping_; /* atomic */ // 用于标识是否正在looping中
-  std::atomic<bool> quit_;
-  bool eventHandling_;  // 锁, 防止执行remove /* atomic */
+  std::atomic<bool> quit_; // 是否退出
+  bool eventHandling_;  // 是否正在处理事件, 防止执行remove /* atomic */
   bool callingPendingFunctors_; /* atomic */
   int64_t iteration_;
   const pid_t threadId_;

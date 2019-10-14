@@ -59,6 +59,7 @@ class TimerQueue : noncopyable
   typedef std::pair<Timer*, int64_t> ActiveTimer;
   typedef std::set<ActiveTimer> ActiveTimerSet;
 
+  // 由EventLoop调用, 被封装为更好用的runAt(), runAfter(), runEvery()等函数
   void addTimerInLoop(Timer* timer);
   void cancelInLoop(TimerId timerId);
   // called when timerfd alarms
@@ -71,8 +72,10 @@ class TimerQueue : noncopyable
 
   EventLoop* loop_;
   const int timerfd_;
+  // 用于观察timerfd_上的readable事件
   Channel timerfdChannel_;
   // Timer list sorted by expiration
+  // std::set<Entry>, 只有key没有value
   TimerList timers_;
 
   // for cancel()
