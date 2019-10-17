@@ -34,7 +34,7 @@ __thread EventLoop* t_loopInThisThread = 0;
 // poll默认时间
 const int kPollTimeMs = 10000;
 
-// 创建时间fd
+// 创建一个唤醒事件fd
 int createEventfd()
 {
   int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -173,10 +173,10 @@ void EventLoop::quit()
   }
 }
 
-// 在EventLoop中执行回调函数
-// a、如果Loop在自身当前线程，直接执行
-// b、如果Loop在别的线程，则将回调放到Loop的
-//    方法队列，保证回调在Loop所在的线程中执行   
+// 可以被本IO线程或其他线程调用
+// 让cb在IO线程的EventLoop中执行回调函数
+// 如果在当前IO线程调用这个函数, 回调会同步进行
+// 如果在其他线程调用runInLoop(), cb会呗加入队列, IO线程会被唤醒来调用这个cb  
 void EventLoop::runInLoop(Functor cb)
 {
   if (isInLoopThread())
@@ -193,10 +193,15 @@ void EventLoop::queueInLoop(Functor cb)
 {
   // 将回调函数放到待执行队列
   {
+  // pendingFunctors_暴露给了其他线程
   MutexLockGuard lock(mutex_);
-  pendingFunctors_.push_back(std::move(cb));
+  pendingFunctors_.push_back(std::move(cb)); // 放入这个队列中
   }
-
+  
+  // 必要时唤醒线程, 两种情况
+  // 如果当前不在IO进程内, 唤醒线程
+  // 此时正在调用pending function, 也唤醒
+  // 只有再IO线程的事件回调中调用queueInLoop(), 才无须wakeup()
   if (!isInLoopThread() || callingPendingFunctors_)
   {
     wakeup();
@@ -210,6 +215,8 @@ size_t EventLoop::queueSize() const
 }
 
 // 将执行回调添加到定时器队列
+// 允许跨线程使用
+// muduo没有枷锁, 而是把TimerQueue的操作转移到了IO线程来进行
 TimerId EventLoop::runAt(Timestamp time, TimerCallback cb)
 {
   return timerQueue_->addTimer(std::move(cb), time, 0.0);
@@ -282,7 +289,7 @@ void EventLoop::abortNotInLoopThread()
 void EventLoop::wakeup()
 {
   uint64_t one = 1;
-  ssize_t n = sockets::write(wakeupFd_, &one, sizeof one);
+  size_t n = sockets::write(wakeupFd_, &one, sizeof one);
   if (n != sizeof one)
   {
     LOG_ERROR << "EventLoop::wakeup() writes " << n << " bytes instead of 8";
@@ -293,21 +300,23 @@ void EventLoop::wakeup()
 void EventLoop::handleRead()
 {
   uint64_t one = 1;
-  ssize_t n = sockets::read(wakeupFd_, &one, sizeof one);
+  size_t n = sockets::read(wakeupFd_, &one, sizeof one);
   if (n != sizeof one)
   {
     LOG_ERROR << "EventLoop::handleRead() reads " << n << " bytes instead of 8";
   }
 }
 
+  // 处理队列中的回调函数
 void EventLoop::doPendingFunctors()
 {
-  // 处理队列中的回调函数
+  // 用于swap回调列表
   std::vector<Functor> functors;
   // FIXME_hqb 状态标志的作用是什么
   callingPendingFunctors_ = true;
 
-  // 交换出来，避免调用时长时间占用锁
+  // 交换出来，不会阻塞其他线程调用queueInLoop()
+  // 避免了死锁, Functor可能会再调用queueInLoop(), 就会在这里死锁
   {
   MutexLockGuard lock(mutex_);
   functors.swap(pendingFunctors_);

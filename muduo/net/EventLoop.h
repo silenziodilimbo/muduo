@@ -69,7 +69,9 @@ class EventLoop : noncopyable
   /// Runs callback immediately in the loop thread.
   /// It wakes up the loop, and run the cb.
   /// If in the same loop thread, cb is run within the function.
-  /// Safe to call from other threads.
+  /// Safe to call from other threads.\
+  // 可以被本IO线程或其他线程调用
+  // 让cb在IO线程的EventLoop中执行回调函数
   void runInLoop(Functor cb);
   /// Queues callback in the loop thread.
   /// Runs after finish pooling.
@@ -135,7 +137,9 @@ class EventLoop : noncopyable
 
  private:
   void abortNotInLoopThread();
+  // 读下8字节数据
   void handleRead();  // waked up
+  // 处理队列中的回调函数
   void doPendingFunctors();
 
   void printActiveChannels() const; // DEBUG
@@ -151,9 +155,11 @@ class EventLoop : noncopyable
   Timestamp pollReturnTime_;
   std::unique_ptr<Poller> poller_;
   std::unique_ptr<TimerQueue> timerQueue_;
+  // 创建一个唤醒事件fd
   int wakeupFd_;
   // unlike in TimerQueue, which is an internal class,
   // we don't expose Channel to client.
+  // 用于处理wakeupFd_上的readable时间, 将时间分发至handleRead()函数
   std::unique_ptr<Channel> wakeupChannel_;
   boost::any context_;
 
@@ -162,7 +168,7 @@ class EventLoop : noncopyable
   Channel* currentActiveChannel_;
 
   mutable MutexLock mutex_;
-  std::vector<Functor> pendingFunctors_ GUARDED_BY(mutex_);
+  std::vector<Functor> pendingFunctors_; // 暴露给了其他线程 GUARDED_BY(mutex_);
 };
 
 }  // namespace net
