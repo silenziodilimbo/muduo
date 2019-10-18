@@ -216,7 +216,7 @@ size_t EventLoop::queueSize() const
 
 // 将执行回调添加到定时器队列
 // 允许跨线程使用
-// muduo没有枷锁, 而是把TimerQueue的操作转移到了IO线程来进行
+// muduo没有加锁, 而是把TimerQueue的操作转移到了IO线程来进行
 TimerId EventLoop::runAt(Timestamp time, TimerCallback cb)
 {
   return timerQueue_->addTimer(std::move(cb), time, 0.0);
@@ -297,6 +297,11 @@ void EventLoop::wakeup()
 }
 
 // 读下8字节数据
+// 并没有在这里调用doPendingFunctors
+// EventLoop::handleRead()只有在调用了EventLoop::wakeup()才能被执行。
+// 如果doPendingFunctors()是在EventLoop::handleRead()内被调用，
+// 那么在IO线程内注册了回调函数并且没有调用EventLoop::wakeup()，
+// 那么回调函数不会被立即得到执行，而必须等待EventLoop::wakeup()被调用后才能被执行。
 void EventLoop::handleRead()
 {
   uint64_t one = 1;
