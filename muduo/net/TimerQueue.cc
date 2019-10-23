@@ -91,6 +91,11 @@ using namespace muduo::net;
 using namespace muduo::net::detail;
 
 // TimerQueue实例化时设置好定时器回调。这里用到了Muduo通道Channel方法。
+
+// 创建时间文件描述符timerfd_ 对应的Channel 为timerfdChannel_
+// 将时间转为文件描述符timerfd_, 一旦到了时间, 该fd就会变得可读
+// 设置该Channel的setReadCallback回调函数为TimerQueue::handleRead,
+// 当超时时刻去执行TimerQueue::handleRead来处理过期定时器
 TimerQueue::TimerQueue(EventLoop* loop)
   : loop_(loop),
     timerfd_(createTimerfd()),
@@ -202,6 +207,7 @@ void TimerQueue::handleRead()
   // 如果没找到, 那么可能该定时器已经过期, 已经在getExpired()中被转移到expired中, 等待处理
   // cancelInLoop检测如果当前正在执行handler
   // 就暂时存放在cancelingTimers_里, 在这里直接clear()析构掉
+  // 之后的遍历, 就不会再去执行它了
   cancelingTimers_.clear();
   // safe to callback outside critical section
   // 执行每个到期的定时器方法

@@ -43,7 +43,9 @@ class TimerId : public muduo::copyable
   friend class TimerQueue;
 
  private:
+  // 定时器
   Timer* timer_;
+  // 一个静态成员, 用于记录Timer创建的个数.为了保证它的线程安全性，使用AtomicInt64封装了一层原子操作.
   int64_t sequence_;
 };
 

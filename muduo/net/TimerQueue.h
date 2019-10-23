@@ -76,6 +76,11 @@ class TimerQueue : noncopyable
   // 这是linux上的定时器fd, 系统定时器
   // 将超时任务转换成文件描述符进行监听
   // 统一到io复用函数中，达到统一的效果
+  // 这个timerfd只有一个, 取最早超时的那个时间作为timerfd的超时时间，一方面减少内存，节省描述符，另一方面更方便管理
+  // 只不过需要随时更新
+  // 在handler中会读取它
+  // 在add和cancel中会利用reset中会更新它
+  // 因为用户再次添加的定时任务的超时时间可能早于先前设置的时间
   const int timerfd_;
   // 用于观察timerfd_上的readable事件
   Channel timerfdChannel_;
