@@ -85,6 +85,7 @@ class EventLoop : noncopyable
   ///
   /// Runs callback at 'time'.
   /// Safe to call from other threads.
+  /// 在时间戳为time的时间执行，0.0表示一次性不重复
   ///
   TimerId runAt(Timestamp time, TimerCallback cb);
   ///
@@ -100,6 +101,8 @@ class EventLoop : noncopyable
   ///
   /// Cancels the timer.
   /// Safe to call from other threads.
+  /// 取消某个定时器队列, 这个timerId是之前runAt返回的
+  /// 直接调用timerQueue的cancle
   ///
   void cancel(TimerId timerId);
 

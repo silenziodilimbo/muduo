@@ -234,7 +234,7 @@ TimerId EventLoop::runEvery(double interval, TimerCallback cb)
   return timerQueue_->addTimer(std::move(cb), time, interval);
 }
 
-// 取消某个定时器队列
+// 取消某个定时器队列, 这个timerId是之前runAt返回的
 void EventLoop::cancel(TimerId timerId)
 {
   return timerQueue_->cancel(timerId);

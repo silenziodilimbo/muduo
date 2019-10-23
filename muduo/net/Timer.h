@@ -26,6 +26,7 @@ namespace net
 class Timer : noncopyable
 {
  public:
+  // cb 定时器到期执行函数，when 定时器到期时间，interval非零表示重复定时器
   Timer(TimerCallback cb, Timestamp when, double interval)
     : callback_(std::move(cb)),
       expiration_(when),
@@ -49,9 +50,13 @@ class Timer : noncopyable
 
  private:
   const TimerCallback callback_;
+  // 定时器过期时间
   Timestamp expiration_;
+  // 周期性定时时间.
   const double interval_;
+  // 是否是周期性定时.
   const bool repeat_;
+  // 一个静态成员,用于记录Timer创建的个数. 为了保证它的线程安全性，使用AtomicInt64封装了一层原子操作.
   const int64_t sequence_;
 
   static AtomicInt64 s_numCreated_;
