@@ -61,7 +61,9 @@ class TcpServer : noncopyable
   /// - 1 means all I/O in another thread.
   /// - N means a thread pool with N threads, new connections
   ///   are assigned on a round-robin basis.
+  // 设置线程池中线程个数
   void setThreadNum(int numThreads);
+  // 设置线程初始化回调函数,一般用于启动线程服务时，初始化调用这得一些资源数据。
   void setThreadInitCallback(const ThreadInitCallback& cb)
   { threadInitCallback_ = cb; }
   /// valid after calling start()
@@ -72,10 +74,12 @@ class TcpServer : noncopyable
   ///
   /// It's harmless to call it multiple times.
   /// Thread safe.
+  // 开始TcpServer服务
   void start();
 
   /// Set connection callback.
   /// Not thread safe.
+  // 设置链路连接Or断开时的回调
   void setConnectionCallback(const ConnectionCallback& cb)
   { connectionCallback_ = cb; }
 
@@ -91,26 +95,38 @@ class TcpServer : noncopyable
 
  private:
   /// Not thread safe, but in loop
+  // 新连接到达时调用的方法
   void newConnection(int sockfd, const InetAddress& peerAddr);
   /// Thread safe.
+  // 移除一个连接
   void removeConnection(const TcpConnectionPtr& conn);
   /// Not thread safe, but in loop
+  // 移除一个连接，用TcpConnection所在的loop
   void removeConnectionInLoop(const TcpConnectionPtr& conn);
 
+  // KV映射
   typedef std::map<string, TcpConnectionPtr> ConnectionMap;
 
   EventLoop* loop_;  // the acceptor loop
   const string ipPort_;
+  // 名称
   const string name_;
+  // 数据接收器
+  // 核心功能
+  // Acceptor中有对accept()的封装，获得新的连接
   std::unique_ptr<Acceptor> acceptor_; // avoid revealing Acceptor
+  // 用于loop的线程池
   std::shared_ptr<EventLoopThreadPool> threadPool_;
   ConnectionCallback connectionCallback_;
   MessageCallback messageCallback_;
   WriteCompleteCallback writeCompleteCallback_;
   ThreadInitCallback threadInitCallback_;
+  // 开始标志
   AtomicInt32 started_;
   // always in loop thread
+  // 下一个连接ID
   int nextConnId_;
+  // 存活的TcpConnection映射表
   ConnectionMap connections_;
 };
 

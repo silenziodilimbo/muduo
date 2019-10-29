@@ -26,10 +26,15 @@ class InetAddress;
 
 ///
 /// Acceptor of incoming TCP connections.
+/// Acceptor用于接受（accept）客户端的连接，通过设置回调函数通知使用者。
+/// 它只在muduo网络库内部的TcpServer使用，
+/// 由TcpServer控制它的生命期。
+/// 实际上，Acceptor只是对Channel的封装，通过Channel关注listenfd的readable可读事件，并设置好回调函数就可以了
 ///
 class Acceptor : noncopyable
 {
  public:
+   // accept后调用的函数对象
   typedef std::function<void (int sockfd, const InetAddress&)> NewConnectionCallback;
 
   Acceptor(EventLoop* loop, const InetAddress& listenAddr, bool reuseport);
@@ -45,9 +50,12 @@ class Acceptor : noncopyable
   void handleRead();
 
   EventLoop* loop_;
+  // 初始化创建sockt fd, Socket是个RAII型，析构时自动close文件描述符
   Socket acceptSocket_;
+  // 初始化channel, 设置监听套接字的readable事件以及回调函数
   Channel acceptChannel_;
   NewConnectionCallback newConnectionCallback_;
+  // 是否正在监听状态
   bool listenning_;
   int idleFd_;
 };

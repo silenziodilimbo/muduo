@@ -59,6 +59,8 @@ void Channel::tie(const std::shared_ptr<void>& obj)
   tied_ = true;
 }
 
+  // uodate()直接调用了EventLoop::updateChannel(Channel* channel)：
+  // 首先判断channel的loop是否是当前运行的loop以及updateChannel函数是否在当前loop线程中线程中调用的
 void Channel::update()
 {
 

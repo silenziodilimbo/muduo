@@ -24,7 +24,13 @@ using namespace muduo::net;
 
 Acceptor::Acceptor(EventLoop* loop, const InetAddress& listenAddr, bool reuseport)
   : loop_(loop),
+  // 初始化创建sockt fd, Socket是个RAII型，析构时自动close文件描述符
+  // 用listenAddr来初始化了一个socket
+  // 这个socket是listening socket, 即 server socket
+  // createNonblockingOrDie可以创建非阻塞socket, linux来完成的
     acceptSocket_(sockets::createNonblockingOrDie(listenAddr.family())),
+  // 初始化channel, 设置监听socket的readable事件以及回调函数
+  // 用loop和socket来初始化了一个channel, 之后给这个channel绑定cb
     acceptChannel_(loop, acceptSocket_.fd()),
     listenning_(false),
     idleFd_(::open("/dev/null", O_RDONLY | O_CLOEXEC))
@@ -32,40 +38,57 @@ Acceptor::Acceptor(EventLoop* loop, const InetAddress& listenAddr, bool reusepor
   assert(idleFd_ >= 0);
   acceptSocket_.setReuseAddr(true);
   acceptSocket_.setReusePort(reuseport);
+  // socket的bind工作
   acceptSocket_.bindAddress(listenAddr);
+  // 当fd可读时调用回调函数hanleRead
   acceptChannel_.setReadCallback(
       std::bind(&Acceptor::handleRead, this));
 }
 
 Acceptor::~Acceptor()
 {
+  // 将其从poller监听集合中移除，此时为kDeleted状态
   acceptChannel_.disableAll();
+  // Poller会持有Channel的裸指针，所以需要将该Channel从Poller中删除，避免Channel析构后，Poller持有空悬指针。，此时为kNew状态
   acceptChannel_.remove();
   ::close(idleFd_);
 }
 
+// TcpServer::start()调用
+// 启动监听套接字
 void Acceptor::listen()
 {
   loop_->assertInLoopThread();
   listenning_ = true;
+  // listen系统调用
   acceptSocket_.listen();
+  // 通过enableReading将accept_channel加到poll数组中
   acceptChannel_.enableReading();
 }
 
 void Acceptor::handleRead()
 {
   loop_->assertInLoopThread();
+  // InetAddress是对struct sockaddr_in的简单封装, 能自动转换字节序
   InetAddress peerAddr;
   //FIXME loop until no more
+  // 这里是真正接收连接
+  // 接受客户端的连接，同时设置连接socket为非阻塞方式。
   int connfd = acceptSocket_.accept(&peerAddr);
   if (connfd >= 0)
   {
     // string hostport = peerAddr.toIpPort();
     // LOG_TRACE << "Accepts of " << hostport;
+    // 执行用户回调
+    // 用户通过acceptor.setNewConnectionCallback(cb)来设置的
     if (newConnectionCallback_)
     {
+      // 将新连接信息传送到回调函数中, 即TcpServer::newConnection
+      // 在TcpServer的构造函数中, 会创建一个端口的acceptor_, 并set新连接回调
+      // 回调进一步创建TcpConnectionPtr conn
       newConnectionCallback_(connfd, peerAddr);
     }
+    // 没有回调函数则关闭client对应的fd
     else
     {
       sockets::close(connfd);
