@@ -104,7 +104,14 @@ void TcpServer::newConnection(int sockfd, const InetAddress& peerAddr)
 
   // FIXME poll with zero timeout to double confirm the new connection
   // FIXME use make_shared if necessary
+
+  // 关键内容
+
   // 创建一个新的TcpConnection
+  // 初始化
+  // 绑定回调
+
+
   // 传入参数有:
   // Loop、
   // 新连接的名称
@@ -148,6 +155,7 @@ void TcpServer::removeConnectionInLoop(const TcpConnectionPtr& conn)
   (void)n;
   assert(n == 1);
   EventLoop* ioLoop = conn->getLoop();
+  // 这里用std::bind让TcpConnection的生命期长到调用connectDestroyed()的时刻
   ioLoop->queueInLoop(
       std::bind(&TcpConnection::connectDestroyed, conn));
 }

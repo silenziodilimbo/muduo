@@ -96,12 +96,15 @@ class TcpServer : noncopyable
  private:
   /// Not thread safe, but in loop
   // 新连接到达时调用的方法
+  // 会给新连接创建TcpConnection, 保存在TcpConnectionPtr里面
   void newConnection(int sockfd, const InetAddress& peerAddr);
   /// Thread safe.
   // 移除一个连接
   void removeConnection(const TcpConnectionPtr& conn);
   /// Not thread safe, but in loop
   // 移除一个连接，用TcpConnection所在的loop
+  // 如果用户不持有TcpConnectionPtr的话, conn的引用计数已经降低到了1
+  // 这里用std::bind让TcpConnection的生命期长到调用connectDestroyed()的时刻
   void removeConnectionInLoop(const TcpConnectionPtr& conn);
 
   // KV映射

@@ -40,8 +40,8 @@ Channel::~Channel()
 {
   // 它不需要关闭fd
 
-  //析构时，如果当前Channel
-  //事件还在处理，则异常。
+  // 析构时，如果当前Channel事件还在处理，则异常。
+  // channel是由TcpConnetion创建的哦!
   assert(!eventHandling_);
   assert(!addedToLoop_);
   if (loop_->isInLoopThread())

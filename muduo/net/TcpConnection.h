@@ -79,6 +79,7 @@ class TcpConnection : noncopyable,
   // 关闭，里面有一定的处理逻辑
   void shutdown(); // NOT thread safe, no simultaneous calling
   // void shutdownAndForceCloseAfter(double seconds); // NOT thread safe, no simultaneous calling
+  // 强行关闭, 最终调用handleClose()
   void forceClose();
   void forceCloseWithDelay(double seconds);
   // 设置tcpNoDelay
@@ -127,19 +128,32 @@ class TcpConnection : noncopyable,
 
   // 关闭回调
   /// Internal use only.
+  // 这个回调是给TcpServer和TcpClient用的
+  // 通知它们移除所持有的TcpConnectionPtr
+  // 不是给普通用户用的
+  // 普通用户继续使用ConnectionCallback
   void setCloseCallback(const CloseCallback& cb)
   { closeCallback_ = cb; }
 
   // called when TcpServer accepts a new connection
   void connectEstablished();   // should be called only once
   // called when TcpServer has removed me from its map
+  // TcpConnection析构前最后调用的一个函数
+  // 它通知用户连接已断开
   void connectDestroyed();  // should be called only once
 
  private:
   enum StateE { kDisconnected, kConnecting, kConnected, kDisconnecting };
+  // TcpConnection的handle*系列, 会set给channel的callback*系列
+  // handleRead中会read, 然后检查read的返回值, 根据返回值决定调用什么cb
+  // 被动关闭连接也是在这里, 即read返回值为0
   void handleRead(Timestamp receiveTime);
   void handleWrite();
+  // 强行关闭, 由forceClose调用
+  // 最主要就是调用closeCallback_
+  // 这个cb是TcpServer::removeConnection
   void handleClose();
+  // 就是打印, 并不影响连接的正常关闭
   void handleError();
   // void sendInLoop(string&& message);
   void sendInLoop(const StringPiece& message);

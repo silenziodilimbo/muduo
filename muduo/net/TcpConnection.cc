@@ -395,8 +395,9 @@ void TcpConnection::connectEstablished()
 // map列表中清除时，会调用此方法。
 // a、设置下状态
 // b、关闭通道
-// c、调用下连接回调函数。
+// c、调用下连接回调函数。 通知用户连接已断开
 // d、移除通道。
+// TcpConnection析构前最后调用的一个函数
 void TcpConnection::connectDestroyed()
 {
   loop_->assertInLoopThread();
@@ -418,6 +419,8 @@ void TcpConnection::handleRead(Timestamp receiveTime)
   int savedErrno = 0;
   // 直接将数据读到inputBuffer
   ssize_t n = inputBuffer_.readFd(channel_->fd(), &savedErrno);
+  // 然后检查read的返回值, 根据返回值决定调用什么cb
+  // 被动关闭连接也是在这里
   if (n > 0)
   {
     // a、读取数据大于0，调用下回调
@@ -495,6 +498,9 @@ void TcpConnection::handleWrite()
 }
 
 // 连接关闭
+// 强行关闭, 由forceClose调用
+// 最主要就是调用closeCallback_
+// 这个cb是TcpServer::removeConnection
 // 这里fd不关闭，fd是外部传入的
 // 当TcpConnection析构时，Sockets会析构
 // 由Sockets去关闭socket
@@ -510,6 +516,8 @@ void TcpConnection::handleClose()
   TcpConnectionPtr guardThis(shared_from_this());
   connectionCallback_(guardThis);
   // must be the last line
+  // 最主要就是调用closeCallback_
+  // 这个cb是TcpServer::removeConnection
   closeCallback_(guardThis);
 }
 
