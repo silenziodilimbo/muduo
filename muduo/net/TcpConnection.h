@@ -52,10 +52,15 @@ class TcpConnection : noncopyable,
                 const InetAddress& peerAddr);
   ~TcpConnection();
 
+  // 获取当前TcpConnection所在的EventLoop
   EventLoop* getLoop() const { return loop_; }
+  // TcpConnection名称
   const string& name() const { return name_; }
+  // 当前服务端地址
   const InetAddress& localAddress() const { return localAddr_; }
+  // 远程连接客户端地址
   const InetAddress& peerAddress() const { return peerAddr_; }
+  // 检测是否连接
   bool connected() const { return state_ == kConnected; }
   bool disconnected() const { return state_ == kDisconnected; }
   // return true if success.
@@ -63,6 +68,7 @@ class TcpConnection : noncopyable,
   string getTcpInfoString() const;
 
   // void send(string&& message); // C++11 // 三个重载
+  // 发送数据
   // 返回值是void,意味者用户不必关心调用send时成功发送了多少字节,muduo库保证发送给对方
   // 非阻塞,用户只要send(),就不会阻塞,即使TCP发送窗口满了
   // 线程安全,源字的,多个线程同时调用send也不会混叠或交织,但是多个线程的先后顺序不确定
@@ -70,37 +76,48 @@ class TcpConnection : noncopyable,
   void send(const StringPiece& message); // StringPiece是Google发明的专门用于传递字符串参数的class,可以用来发送const char*和const std::string&
   // void send(Buffer&& message); // C++11 直接利用std::move 利用右值引用来避免拷贝
   void send(Buffer* message);  // this one will swap data 参数为指针,而不是const引用.因为函数可能使用swap来高效地交换数据,类似右值引用(上面那个)
+  // 关闭，里面有一定的处理逻辑
   void shutdown(); // NOT thread safe, no simultaneous calling
   // void shutdownAndForceCloseAfter(double seconds); // NOT thread safe, no simultaneous calling
   void forceClose();
   void forceCloseWithDelay(double seconds);
+  // 设置tcpNoDelay
   void setTcpNoDelay(bool on);
   // reading or not
   void startRead();
   void stopRead();
   bool isReading() const { return reading_; }; // NOT thread safe, may race with start/stopReadInLoop
 
+  // 设置内容。这个内容可以是任何数据，主要是用着一个临时存储作用。
   void setContext(const boost::any& context)
   { context_ = context; }
 
+  // 获取内容的引用(获取当前内容，一般在回调中使用)
   const boost::any& getContext() const
   { return context_; }
 
+  // 获取内容的地址(获取当前内容，一般在回调中使用)
   boost::any* getMutableContext()
   { return &context_; }
 
+  // 设置连接回调。一般用于做什么?
+  // a、连接的建立、连接的销毁、产生关闭事件时会调用此回调，通知外部状态。
   void setConnectionCallback(const ConnectionCallback& cb)
   { connectionCallback_ = cb; }
 
+  // 设置消息回调。一般接收到数据之后会回调此方法
   void setMessageCallback(const MessageCallback& cb)
   { messageCallback_ = cb; }
 
+  // 写完成回调。
   void setWriteCompleteCallback(const WriteCompleteCallback& cb)
   { writeCompleteCallback_ = cb; }
 
+  // 设置高水位回调。
   void setHighWaterMarkCallback(const HighWaterMarkCallback& cb, size_t highWaterMark)
   { highWaterMarkCallback_ = cb; highWaterMark_ = highWaterMark; }
 
+  // 获取输入Buffer地址
   /// Advanced interface
   Buffer* inputBuffer()
   { return &inputBuffer_; }
@@ -108,6 +125,7 @@ class TcpConnection : noncopyable,
   Buffer* outputBuffer()
   { return &outputBuffer_; }
 
+  // 关闭回调
   /// Internal use only.
   void setCloseCallback(const CloseCallback& cb)
   { closeCallback_ = cb; }
@@ -139,16 +157,25 @@ class TcpConnection : noncopyable,
   StateE state_;  // FIXME: use atomic variable
   bool reading_;
   // we don't expose those classes to client.
+  // 连接Socket
+  // 析构函数会自动close fd
   std::unique_ptr<Socket> socket_;
+  // 通道
+  // TcpConnection使用channel来获得socket上的IO事件
   std::unique_ptr<Channel> channel_;
+  // 当前服务端地址
   const InetAddress localAddr_;
+  // 当前连接客户端地址
   const InetAddress peerAddr_;
+  // 回调函数
   ConnectionCallback connectionCallback_;
   MessageCallback messageCallback_;
   WriteCompleteCallback writeCompleteCallback_;
   HighWaterMarkCallback highWaterMarkCallback_;
   CloseCallback closeCallback_;
+  // 高水位线
   size_t highWaterMark_;
+  // 输入Buffer
   Buffer inputBuffer_;
   Buffer outputBuffer_; // FIXME: use list<Buffer> as output buffer.
 
