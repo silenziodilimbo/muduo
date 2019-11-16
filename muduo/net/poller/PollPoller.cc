@@ -26,6 +26,7 @@ PollPoller::PollPoller(EventLoop* loop)
 
 PollPoller::~PollPoller() = default;
 
+// 在EventLoop::loop的循环中调用
 Timestamp PollPoller::poll(int timeoutMs, ChannelList* activeChannels)
 {
   // XXX pollfds_ shouldn't change
@@ -64,7 +65,7 @@ void PollPoller::fillActiveChannels(int numEvents,
   for (PollFdList::const_iterator pfd = pollfds_.begin();
       pfd != pollfds_.end() && numEvents > 0; ++pfd)
   {
-    //循环取值
+    // 循环取值
     if (pfd->revents > 0)
     {
       // 找出有活动事件的fd, 把它对应的channel 填入 activeChannels

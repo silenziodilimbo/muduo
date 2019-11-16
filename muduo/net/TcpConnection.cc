@@ -123,6 +123,7 @@ void TcpConnection::send(const StringPiece& message)
     // 会涉及到数据拷贝
     else
     {
+      // 把sendInloop加工成函数指针, 放到runInLoop中
       void (TcpConnection::*fp)(const StringPiece& message) = &TcpConnection::sendInLoop;
       loop_->runInLoop(
           std::bind(fp,
@@ -178,6 +179,7 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
   {
     // 如果通道没在写数据，同时输出缓存是空的
     // 则直接往fd中写数据，即发送
+    // 如果当前outputBuffer_有待发送的数据, 那么就不能先尝试发送了, 这会造成数据乱序
     nwrote = sockets::write(channel_->fd(), data, len);
     if (nwrote >= 0)
     {
