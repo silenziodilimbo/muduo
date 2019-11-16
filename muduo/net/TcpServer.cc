@@ -27,7 +27,7 @@ TcpServer::TcpServer(EventLoop* loop,
   // 赋值网络信息和名称
     ipPort_(listenAddr.toIpPort()),
     name_(nameArg),
-  // 新建一个用于接收连接的Acceptor
+  // 新建一个Acceptor, 负责被动接收连接, 有连接的时候会创建Connection
     acceptor_(new Acceptor(loop, listenAddr, option == kReusePort)),
   // 创建一个线程池
     threadPool_(new EventLoopThreadPool(loop, name_)),

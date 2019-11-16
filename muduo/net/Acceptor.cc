@@ -24,13 +24,7 @@ using namespace muduo::net;
 
 Acceptor::Acceptor(EventLoop* loop, const InetAddress& listenAddr, bool reuseport)
   : loop_(loop),
-  // 初始化创建sockt fd, Socket是个RAII型，析构时自动close文件描述符
-  // 用listenAddr来初始化了一个socket
-  // 这个socket是listening socket, 即 server socket
-  // createNonblockingOrDie可以创建非阻塞socket, linux来完成的
     acceptSocket_(sockets::createNonblockingOrDie(listenAddr.family())),
-  // 初始化channel, 设置监听socket的readable事件以及回调函数
-  // 用loop和socket来初始化了一个channel, 之后给这个channel绑定cb
     acceptChannel_(loop, acceptSocket_.fd()),
     listenning_(false),
     idleFd_(::open("/dev/null", O_RDONLY | O_CLOEXEC))
@@ -63,6 +57,7 @@ void Acceptor::listen()
   // listen系统调用
   acceptSocket_.listen();
   // 通过enableReading将accept_channel加到poll数组中
+  //Channel注册自己到所属事件驱动循环（EventLoop）中的Poller上
   acceptChannel_.enableReading();
 }
 

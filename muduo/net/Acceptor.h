@@ -24,13 +24,12 @@ namespace net
 class EventLoop;
 class InetAddress;
 
-///
-/// Acceptor of incoming TCP connections.
-/// Acceptor用于接受（accept）客户端的连接，通过设置回调函数通知使用者。
-/// 它只在muduo网络库内部的TcpServer使用，
-/// 由TcpServer控制它的生命期。
-/// 实际上，Acceptor只是对Channel的封装，通过Channel关注listenfd的readable可读事件，并设置好回调函数就可以了
-///
+//Acceptor of incoming TCP connections.
+//Acceptor用于接受(accept)客户端的连接，通过设置回调函数通知使用者。
+//是TcpServer的成员变量
+//由TcpServer控制它的生命期。
+//实际上，Acceptor只是对Channel的封装，通过Channel关注listenfd的readable可读事件，并设置好回调函数就可以了
+//Acceptor是被动接收连接(存在于TcpServer中), Connector是主动接收连接(存在于TcpClient中)
 class Acceptor : noncopyable
 {
  public:
@@ -50,10 +49,20 @@ class Acceptor : noncopyable
   void handleRead();
 
   EventLoop* loop_;
-  // 初始化创建sockt fd, Socket是个RAII型，析构时自动close文件描述符
+  //初始化创建socketfd, socketfd是个RAII，析构时自动close文件描述符
+  //用listenAddr来初始化这个socket
+  //这个socket是listening socket, 即 server socket
+  //createNonblockingOrDie可以创建非阻塞socket, linux来完成的
   Socket acceptSocket_;
-  // 初始化channel, 设置监听套接字的readable事件以及回调函数
+  //channel
+  //用socketfd创建的, 当fd可读的时候, 会调用newConnectionCallback_回调
+  //步骤如下:
+  //1. TcpServer会调用它的listen()接口
+  //把channel注册自己到所属事件驱动循环（EventLoop）中的Poller上
+  //2. 当这个channel变得可读的时候, 会执行回调Acceptor::handleRead
+  //3. 在handlerRead中, 会执行由TcpServer Set的newConnectionCallback_回调
   Channel acceptChannel_;
+  // 回调, 在TcpServer的构造函数中会初始化它
   NewConnectionCallback newConnectionCallback_;
   // 是否正在监听状态
   bool listenning_;
