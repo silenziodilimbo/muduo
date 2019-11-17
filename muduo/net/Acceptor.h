@@ -55,12 +55,18 @@ class Acceptor : noncopyable
   //createNonblockingOrDie可以创建非阻塞socket, linux来完成的
   Socket acceptSocket_;
   //channel
-  //用socketfd创建的, 当fd可读的时候, 会调用newConnectionCallback_回调
+  //用socketfd创建的, 当fd可读的时候,即有了新连接的时候, 会调用newConnectionCallback_回调，创建一个TcpConnection
   //步骤如下:
-  //1. TcpServer会调用它的listen()接口
-  //把channel注册自己到所属事件驱动循环（EventLoop）中的Poller上
-  //2. 当这个channel变得可读的时候, 会执行回调Acceptor::handleRead
-  //3. 在handlerRead中, 会执行由TcpServer Set的newConnectionCallback_回调
+  //channel的构造函数中，指明了事件。acceptChannel_(loop, acceptSocket_.fd()),
+  //这个事件就是socketfd（地址）的可读事件，也就是新连接到来，
+  //channel注册在所属事件驱动循环（EventLoop）中的Poller上。
+  //当loop()函数监听到通道acceptChannel_有事件到来，即listen套接字可读时，即新连接到来
+  //调用这个通道的readCallback，即acceptChannel_->handleEvent()
+  //即Acceptor::handleRead()
+  //handleRead()函数中又调用了accept()接收客户端的请求
+  //连接建立后，会调用注册的回调函数newConnectionCallback_()
+  //这个回调中, 会创建一个TcpConnection, 里面是一个channel（用了connfd），还有一个socketfd（用了connfd）
+  //这个channel绑定了用户级别的读写回调
   Channel acceptChannel_;
   // 回调, 在TcpServer的构造函数中会初始化它
   NewConnectionCallback newConnectionCallback_;
