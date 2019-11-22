@@ -113,7 +113,7 @@ void TcpServer::newConnection(int sockfd, const InetAddress& peerAddr)
 
 
   // 传入参数有:
-  // Loop、
+  // Loop 这个loop是线程池中的一个
   // 新连接的名称
   // 连接socket
   // 当前服务地址
@@ -126,8 +126,10 @@ void TcpServer::newConnection(int sockfd, const InetAddress& peerAddr)
   // 保存当前连接
   // TcpConnection的名字, 做key
   connections_[connName] = conn;
+  // 设置若干回调
   // 设置连接回调（连接断开和关闭都会调用）
   conn->setConnectionCallback(connectionCallback_);
+  // 消息回调
   conn->setMessageCallback(messageCallback_);
   conn->setWriteCompleteCallback(writeCompleteCallback_);
   // 设置关闭回调，移除对应的TcpConnection

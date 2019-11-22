@@ -67,15 +67,18 @@ void Acceptor::handleRead()
   // InetAddress是对struct sockaddr_in的简单封装, 能自动转换字节序
   InetAddress peerAddr;
   //FIXME loop until no more
+  // 接受新连接
   // 这里是真正接收连接
   // 接受客户端的连接，同时设置连接socket为非阻塞方式。
+  // 实际上调用了TcpServer::newConnection
   int connfd = acceptSocket_.accept(&peerAddr);
   if (connfd >= 0)
   {
     // string hostport = peerAddr.toIpPort();
     // LOG_TRACE << "Accepts of " << hostport;
     // 执行用户回调
-    // 用户通过acceptor.setNewConnectionCallback(cb)来设置的
+    // 是TcpServer通过acceptor.setNewConnectionCallback(cb)来设置的
+    // 即TcpServer::newConnection
     if (newConnectionCallback_)
     {
       // 将新连接信息传送到回调函数中, 即TcpServer::newConnection

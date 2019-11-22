@@ -41,9 +41,11 @@ class Channel : noncopyable
   Channel(EventLoop* loop, int fd);
   ~Channel();
 
+  // 这个是Eventloop的loop中调用
   // 当通道产生事件时, EventLoop首先调用的方法
   void handleEvent(Timestamp receiveTime);
 
+  // 这些是TcpServer/Acceptor和TcpConnection调用的
   // 根据revents_的值分别调用不同的用户回调
   void setReadCallback(ReadEventCallback cb)
   { readCallback_ = std::move(cb); }
