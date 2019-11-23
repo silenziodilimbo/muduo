@@ -63,6 +63,9 @@ class Channel : noncopyable
   int fd() const { return fd_; }
   int events() const { return events_; }
   // used by pollers
+  // 由Poller调用
+  // 当有fd上有事件发生的时候， 操作系统会给出一个值， Poller调用set_revents赋值到Channel上
+  // 这样Channel就能通过revents来判断了
   void set_revents(int revt) { revents_ = revt; } 
   // int revents() const { return revents_; }
   // 检查当前Channel是否未处理任何事件

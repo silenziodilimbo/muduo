@@ -75,6 +75,7 @@ void PollPoller::fillActiveChannels(int numEvents,
       assert(ch != channels_.end());
       Channel* channel = ch->second;
       assert(channel->fd() == pfd->fd);
+      // Channel会根据这个值, 判断是什么事件
       channel->set_revents(pfd->revents);
       // pfd->revents = 0;
       activeChannels->push_back(channel);
