@@ -56,7 +56,7 @@ TcpConnection::TcpConnection(EventLoop* loop,
     state_(kConnecting),
     reading_(true),
     // 封装sockfd为Socket。
-    // TcpConnection没有建立连接得功能, 在构造函数中会传入已经建立好的socket fd, 无论是TcpServer被动还是主动的连接
+    // TcpConnection没有建立连接的功能, 在构造函数中会传入已经建立好的socket fd, 无论是TcpServer被动还是主动的连接
     socket_(new Socket(sockfd)),
     // 利用loop和sockfd，创建一个通道。
     channel_(new Channel(loop, sockfd)),
@@ -104,6 +104,7 @@ string TcpConnection::getTcpInfoString() const
   return buf;
 }
 
+// 最终是sendInLoop
 void TcpConnection::send(const void* data, int len)
 {
   send(StringPiece(static_cast<const char*>(data), len));
@@ -162,11 +163,15 @@ void TcpConnection::sendInLoop(const StringPiece& message)
   sendInLoop(message.data(), message.size());
 }
 
-// 发送数据重点函数
+// 发送数据真正的函数
+// 一次性发完
+// 或者存在outerBuffer中, 等待回调(handleWrite)来发送
 void TcpConnection::sendInLoop(const void* data, size_t len)
 {
   loop_->assertInLoopThread();
+  // 已经发送的数据
   ssize_t nwrote = 0;
+  // 剩下要发送的数据
   size_t remaining = len;
   bool faultError = false;
   if (state_ == kDisconnected)
@@ -178,12 +183,13 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
   if (!channel_->isWriting() && outputBuffer_.readableBytes() == 0)
   {
     // 如果通道没在写数据，同时输出缓存是空的
-    // 则直接往fd中写数据，即发送
+    // 则直接往channel的fd中写数据，即发送
     // 如果当前outputBuffer_有待发送的数据, 那么就不能先尝试发送了, 这会造成数据乱序
     nwrote = sockets::write(channel_->fd(), data, len);
+    // 发送数据 >= 0
     if (nwrote >= 0)
     {
-      // 发送数据 >= 0
+      // 剩下的数据
       remaining = len - nwrote;
       if (remaining == 0 && writeCompleteCallback_)
       {
@@ -213,7 +219,10 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
   assert(remaining <= len);
   if (!faultError && remaining > 0)
   {
+    // 往outputBuffer后面添加数据
+    // 当前outputBuffer里面已经有的数据
     size_t oldLen = outputBuffer_.readableBytes();
+    // 判断当前outputBuffer已经有的+准备添加的的
     if (oldLen + remaining >= highWaterMark_
         && oldLen < highWaterMark_
         && highWaterMarkCallback_)
@@ -227,8 +236,13 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
     outputBuffer_.append(static_cast<const char*>(data)+nwrote, remaining);
     if (!channel_->isWriting())
     {
-      // 将通道置成可写状态。这样当通道活跃时，
-      // 就好调用TcpConnection的可写方法。
+      // 将通道置成可写状态。
+      // 给channel添加一个可写事件
+      // 会一路发送到Poller中, 保存在pfd中
+      // 这样当通道活跃时，
+      // Poller会调用Channel的handlerEvent
+      // 进而调用Channel的writeCallback
+      // 也就是TcpConnection的handleWrite
       // 对实时要求高的数据，这种处理方法可能有一定的延时。
       channel_->enableWriting();
     }
