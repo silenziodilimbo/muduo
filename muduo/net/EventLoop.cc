@@ -250,6 +250,8 @@ void EventLoop::updateChannel(Channel* channel)
 }
 
 // 移除通道
+// 由Channel::remove调用
+// 这个函数调用了Poller::removeChannel方法, 来更新channel
 void EventLoop::removeChannel(Channel* channel)
 {
   assert(channel->ownerLoop() == this);

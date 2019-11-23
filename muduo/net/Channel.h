@@ -62,7 +62,8 @@ class Channel : noncopyable
 
   int fd() const { return fd_; }
   int events() const { return events_; }
-  void set_revents(int revt) { revents_ = revt; } // used by pollers
+  // used by pollers
+  void set_revents(int revt) { revents_ = revt; } 
   // int revents() const { return revents_; }
   // 检查当前Channel是否未处理任何事件
   bool isNoneEvent() const { return events_ == kNoneEvent; }
@@ -110,7 +111,7 @@ class Channel : noncopyable
   const int  fd_; // Channel实际处理的fd
   int        events_; // IO事件的事件类型, 由用户设置
   int        revents_; // 目前活动的事件, 由EventLoop/Poller设置; it's the received event types of epoll or poll
-  int        index_; // used by Poller.
+  int        index_; // 第一次注册 update方法的时候, 会set进来
   bool       logHup_;
 
   std::weak_ptr<void> tie_; // 用于tie()方法
