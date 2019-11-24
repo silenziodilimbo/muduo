@@ -96,7 +96,8 @@ void Channel::remove()
   loop_->removeChannel(this);
 }
 
-// 由EventLoop调用
+// 由EventLoop::loop()调用
+// 每次循环轮流调用所有activeChannel的handleEvent
 // 实际调用了handleEventWithGuard
 // 事件处理， 检测事件类型，调用相应的Read / Write / Error回调
 void Channel::handleEvent(Timestamp receiveTime)
@@ -119,12 +120,16 @@ void Channel::handleEvent(Timestamp receiveTime)
   }
 }
 
+
 // handleEvent调用， 事件处理的真实逻辑
+// 由EventLoop::loop()调用
+// 每次循环轮流调用所有activeChannel的handleEvent
+// 处理当前channel里面的各种事件
 void Channel::handleEventWithGuard(Timestamp receiveTime)
 {
 
-  //事件处理时，设置下此状态，
-  //Channel析构时，用到此状态 
+  // 事件处理时，设置下此状态，
+  // Channel析构时，用到此状态 
   eventHandling_ = true;
   LOG_TRACE << reventsToString();
   
@@ -133,8 +138,8 @@ void Channel::handleEventWithGuard(Timestamp receiveTime)
   // 这样Channel就能通过revents来判断了
   if ((revents_ & POLLHUP) && !(revents_ & POLLIN))
   {
-    //文件描述符挂起，并且不是读事件
-    //POLLHUP 描述符挂起，比如管道的写端被关闭后，读端描述符将收到此事件
+    // 文件描述符挂起，并且不是读事件
+    // POLLHUP 描述符挂起，比如管道的写端被关闭后，读端描述符将收到此事件
     if (logHup_)
     {
       LOG_WARN << "fd = " << fd_ << " Channel::handle_event() POLLHUP";

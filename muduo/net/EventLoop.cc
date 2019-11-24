@@ -100,7 +100,7 @@ EventLoop::EventLoop()
   wakeupChannel_->setReadCallback(
       std::bind(&EventLoop::handleRead, this));
   // we are always reading the wakeupfd
-  wakeupChannel_->enableReading();
+  wakeupChannel_->enableRe..ading();
 }
 
 // 析构 
@@ -116,6 +116,12 @@ EventLoop::~EventLoop()
   t_loopInThisThread = NULL;  // 一个静态的线程id
 }
 
+// 一个while循环
+// 做了两件事
+// 1是执行执行activeChannel里面的事件回调
+// 即Channel::handleEvent
+// 2是执行其他线程runInLoop放进来的函数
+// 即doPendingFunctors
 void EventLoop::loop()
 {
   assert(!looping_);
@@ -199,7 +205,7 @@ void EventLoop::queueInLoop(Functor cb)
   }
   
   // 必要时唤醒线程, 两种情况
-  // 如果当前不在IO进程内, 唤醒线程
+  // 如果当前不在IO线程内, 唤醒线程
   // 此时正在调用pending function, 也唤醒
   // 只有再IO线程的事件回调中调用queueInLoop(), 才无须wakeup()
   if (!isInLoopThread() || callingPendingFunctors_)
@@ -241,6 +247,9 @@ void EventLoop::cancel(TimerId timerId)
 }
 
 // 更新通道
+// 由channel::update调用
+// 基本就是一句话
+// poller_->updateChannel(channel);
 void EventLoop::updateChannel(Channel* channel)
 {
   // Channel所在的Loop要和当前Loop保持一致
@@ -250,8 +259,9 @@ void EventLoop::updateChannel(Channel* channel)
 }
 
 // 移除通道
-// 由Channel::remove调用
-// 这个函数调用了Poller::removeChannel方法, 来更新channel
+// 由channel::remove调用
+// 基本就是一句话
+// poller_->removeChannel(channel);
 void EventLoop::removeChannel(Channel* channel)
 {
   assert(channel->ownerLoop() == this);
@@ -314,7 +324,10 @@ void EventLoop::handleRead()
   }
 }
 
-  // 处理队列中的回调函数
+// EventLoop::loop()调用
+// 处理队列中的回调函数
+// 基本就是执行一遍
+// 一个技巧是先swap到临时对象中, 再执行, 避免长时间加锁阻塞
 void EventLoop::doPendingFunctors()
 {
   // 用于swap回调列表

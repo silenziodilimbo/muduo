@@ -250,6 +250,7 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
 }
 
 // 关闭"写"方向的连接,而不关闭"读"方面的连接
+// 会调用shutdownInLoop
 // 关闭动作，如果状态是连接，
 // 则要调用下关闭动作。
 void TcpConnection::shutdown()
@@ -264,6 +265,7 @@ void TcpConnection::shutdown()
   }
 }
 
+// shutdown()调用
 // a、通道不再写数据，则直接关闭写
 // b、通道若处于写数据状态，则不做
 //   处理，留给后面处理。
@@ -303,6 +305,7 @@ void TcpConnection::shutdownInLoop()
 //                        &TcpConnection::forceCloseInLoop));
 // }
 
+// 调用forceCloseInLoop, 最终调用handleClose()
 void TcpConnection::forceClose()
 {
   // FIXME: use compare and swap
@@ -440,7 +443,9 @@ void TcpConnection::handleRead(Timestamp receiveTime)
   if (n > 0)
   {
     // a、读取数据大于0，调用下回调
-    // messageCallback_ 是用户set的, 也就是用户在main函数中, server.setMessageCallback
+    // messageCallback_ 用户设置回调给TcpServer
+    // TcpServer设置回调给TcpConnection
+    // TcpConnection设置回调给Channel    
     messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
   }
   else if (n == 0)
@@ -458,7 +463,11 @@ void TcpConnection::handleRead(Timestamp receiveTime)
 }
 
 // 回调调用可写函数
-// 该函数用于强行关闭连接
+// 两个作用
+// 1是发送outputBuffer里面的内容
+// 当send发送时, 没有一次性发送完毕
+// 会把剩余数据存入outerBuffer中, 同时通过Channel可写信号, 经过Poller调用Channel::handlerEvent, 最终调用handleWrite
+// 2是发送0, 用于强行关闭连接
 // 一般而言,当对方read()到0字节之后,会主动关闭连接(无论是shutdownWrite()还是close())
 // 但如果对方故意不关闭,muduo的连接就会一直半开着,消耗系统资源
 // 所以必要时可以调用handleWrite来强行关闭连接
@@ -468,24 +477,29 @@ void TcpConnection::handleWrite()
   // 通道可写才进入
   if (channel_->isWriting())
   {
-    // 写缓存里所有数据   
+    // 作用1 首先发送outputBuffer里面所有数据   
     size_t n = sockets::write(channel_->fd(),
                                outputBuffer_.peek(),
                                outputBuffer_.readableBytes());
     if (n > 0)
     {
+      // 发送完毕后, 把outputBuffer里面数据删除
       // 发送了多少数据，设置Buffer索引，
       // 当外部调用TcpConnection::shutdown时也不直接关闭
       // 要等数据发送完了之后再关闭。
       outputBuffer_.retrieve(n);
+
+      // 如果可读的数据量为0，这里的可读是针对系统发送函数来说的，不是针对用户
+      // 如果对于系统发送函数来说，可读的数据量为0，表示所有数据都被发送完毕了，即写完成了
+      // 如果Buffer可读数据为0表示都已经发送完毕。
+      // 关闭通道的写状态。不再监听该套接字上的可写事件
       if (outputBuffer_.readableBytes() == 0)
       {
-        // 如果Buffer可读数据为0表示都已经发送完毕。
-        // 关闭通道的写状态。
         channel_->disableWriting();
+        // 如果有写完成回调函数，就调用下。
         if (writeCompleteCallback_)
         {
-          // 如果有写完成回调函数，就调用下。
+          // 在IO线程中执行
           loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
         }
         // 如果状态已经是断开中，
@@ -514,7 +528,9 @@ void TcpConnection::handleWrite()
 }
 
 // 连接关闭
-// 强行关闭, 由forceClose调用
+// 两个地方会调用
+// 1是handleRead, 如果收到的消息为0, 关闭连接
+// 2是forceClose()强行关闭
 // 最主要就是调用closeCallback_
 // 这个cb是TcpServer::removeConnection
 // 这里fd不关闭，fd是外部传入的
