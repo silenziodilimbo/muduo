@@ -27,10 +27,13 @@ PollPoller::PollPoller(EventLoop* loop)
 PollPoller::~PollPoller() = default;
 
 // 在EventLoop::loop的循环中调用
+// poll会调用fillActiveChannels
 Timestamp PollPoller::poll(int timeoutMs, ChannelList* activeChannels)
 {
   // XXX pollfds_ shouldn't change
   // 通过poll查询是否有活跃的文件描述符
+  // 这个的意义主要在于优化
+  // 功能还是fillActiveChannels在遍历, 只不过优化后, 遍历的可以少一点
   int numEvents = ::poll(&*pollfds_.begin(), pollfds_.size(), timeoutMs);
   int savedErrno = errno;
   Timestamp now(Timestamp::now());
@@ -58,6 +61,9 @@ Timestamp PollPoller::poll(int timeoutMs, ChannelList* activeChannels)
   return now;
 }
 
+// EventLoop::loop()调用Poller::loop(), 有调用它
+// 向activeChannels填充Channel
+// 里面用的fd, 其实就是映射channel, 效率问题
 void PollPoller::fillActiveChannels(int numEvents,
                                     ChannelList* activeChannels) const
 {
@@ -86,11 +92,11 @@ void PollPoller::fillActiveChannels(int numEvents,
   // 也是因为单一职责原则, 只IO, 不分发
 }
 
-// 某个Channel会调用update
-// 实际上是调用了EventLoop::updateChannel来更新自己, 即channel
-// 这个函数调用了Poller::updateChannel方法, 来更新channel
+// channel::enableRead会调用 channel::update()
+// 进而调用EventLoop::updateChannel()
+// 进而调用Poller::updateChannel()
 // 如果是新的Channel (没有index)
-// 创建一个pollfd来管理它, 包括fd/events/revents
+// 创建一个pollfd来管理它, 这个fd包括了包括channel的fd/events/revents
 // 把pollfd放到队列中
 // 生成一个channel的index, 赋值给channel, 用作标记
 // 把channel放到队列中
@@ -166,9 +172,9 @@ void PollPoller::removeChannel(Channel* channel)
   }
   else
   {
-    //如果删除的struct pollfd不是列表的结尾，
-    //出于效率考虑，直接将要删除的pollfd与尾部的
-    //pollfd交换，然后释放
+    // 如果删除的struct pollfd不是列表的结尾，
+    // 出于效率考虑，直接将要删除的pollfd与尾部的
+    // pollfd交换，然后释放
     int channelAtEnd = pollfds_.back().fd;
     iter_swap(pollfds_.begin()+idx, pollfds_.end()-1);
     if (channelAtEnd < 0)
