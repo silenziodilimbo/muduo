@@ -59,8 +59,17 @@ void Channel::tie(const std::shared_ptr<void>& obj)
   tied_ = true;
 }
 
-  // uodate()直接调用了EventLoop::updateChannel(Channel* channel)：
-  // 首先判断channel的loop是否是当前运行的loop以及updateChannel函数是否在当前loop线程中线程中调用的
+// 由enable/disable reading/Writing调用
+// 实际上是调用了EventLoop::updateChannel来更新自己, 即channel
+// 这个函数调用了Poller::updateChannel方法, 来更新channel
+// 如果是新的Channel (没有index)
+// 创建一个pollfd来管理它, 包括fd/events/revents
+// 把pollfd放到队列中
+// 生成一个channel的index, 赋值给channel, 用作标记
+// 把channel放到队列中
+// 如果不是新的channel (已经有了index)
+// 取出pfd来进行更新
+// 如果某个Channel暂时不关心任何事件, 就置为-1, 让poll忽略此项
 void Channel::update()
 {
 
@@ -69,19 +78,28 @@ void Channel::update()
   loop_->updateChannel(this);
 }
 
+// 当前无任何事件的情况下，
+// 移除Channel管理队列中本Channel。
+// Eventloop析构的时候， 会调用wakeupChannel::disable和remove
+// Acceptor析构的时候会调用
+// Connector释放的时候会调用
+// TcpConnection断开的时候会调用
+// 实际上是调用了EventLoop::removeChannel
+// 这个函数调用了Poller::removeChannel方法
+// 从Channel中取出index
+// 列表中删除fd
+// 列表中删除channel
 void Channel::remove()
 {
-
-  //当前无任何事件的情况下，
-  //移除Channel管理队列中本Channel。
   assert(isNoneEvent());
   addedToLoop_ = false;
   loop_->removeChannel(this);
 }
 
-// 由EventLoop调用
-// 根据revents_的值分别调用不同的用户回调
-// 具体的分发逻辑在handleEventWithGuard里
+// 由EventLoop::loop()调用
+// 每次循环轮流调用所有activeChannel的handleEvent
+// 实际调用了handleEventWithGuard
+// 事件处理， 检测事件类型，调用相应的Read / Write / Error回调
 void Channel::handleEvent(Timestamp receiveTime)
 {
   std::shared_ptr<void> guard;
@@ -102,17 +120,26 @@ void Channel::handleEvent(Timestamp receiveTime)
   }
 }
 
+
+// handleEvent调用， 事件处理的真实逻辑
+// 由EventLoop::loop()调用
+// 每次循环轮流调用所有activeChannel的handleEvent
+// 处理当前channel里面的各种事件
 void Channel::handleEventWithGuard(Timestamp receiveTime)
 {
 
-  //事件处理时，设置下此状态，
-  //Channel析构时，用到此状态 
+  // 事件处理时，设置下此状态，
+  // Channel析构时，用到此状态 
   eventHandling_ = true;
   LOG_TRACE << reventsToString();
+  
+  // revents_是Poller设置的
+  // 当有fd上有事件发生的时候， 操作系统会给出一个值， Poller调用set_revents赋值到Channel上
+  // 这样Channel就能通过revents来判断了
   if ((revents_ & POLLHUP) && !(revents_ & POLLIN))
   {
-    //文件描述符挂起，并且不是读事件
-    //POLLHUP 描述符挂起，比如管道的写端被关闭后，读端描述符将收到此事件
+    // 文件描述符挂起，并且不是读事件
+    // POLLHUP 描述符挂起，比如管道的写端被关闭后，读端描述符将收到此事件
     if (logHup_)
     {
       LOG_WARN << "fd = " << fd_ << " Channel::handle_event() POLLHUP";
@@ -158,7 +185,7 @@ string Channel::eventsToString() const
   return eventsToString(fd_, events_);
 }
 
-//此方法就是将对应的事件转换为字符串输出，便于调试。
+// 此方法就是将对应的事件转换为字符串输出，便于调试。
 string Channel::eventsToString(int fd, int ev)
 {
   std::ostringstream oss;

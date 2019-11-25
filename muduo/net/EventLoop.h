@@ -162,6 +162,7 @@ class EventLoop : noncopyable
   int wakeupFd_;
   // unlike in TimerQueue, which is an internal class,
   // we don't expose Channel to client.
+  // 是为了wakeup服务的, 没有真实意义
   // 用于处理wakeupFd_上的readable时间, 将时间分发至handleRead()函数
   std::unique_ptr<Channel> wakeupChannel_;
   boost::any context_;
@@ -171,7 +172,10 @@ class EventLoop : noncopyable
   Channel* currentActiveChannel_;
 
   mutable MutexLock mutex_;
-  std::vector<Functor> pendingFunctors_; // 暴露给了其他线程 GUARDED_BY(mutex_);
+  // 暴露给了其他线程 GUARDED_BY(mutex_);
+  // 其他线程runInLoop的函数, 会放在这里
+  // 在loop()中通过doPendingFunctors()依次执行
+  std::vector<Functor> pendingFunctors_; 
 };
 
 }  // namespace net

@@ -75,6 +75,7 @@ void PollPoller::fillActiveChannels(int numEvents,
       assert(ch != channels_.end());
       Channel* channel = ch->second;
       assert(channel->fd() == pfd->fd);
+      // Channel会根据这个值, 判断是什么事件
       channel->set_revents(pfd->revents);
       // pfd->revents = 0;
       activeChannels->push_back(channel);
@@ -85,6 +86,17 @@ void PollPoller::fillActiveChannels(int numEvents,
   // 也是因为单一职责原则, 只IO, 不分发
 }
 
+// 某个Channel会调用update
+// 实际上是调用了EventLoop::updateChannel来更新自己, 即channel
+// 这个函数调用了Poller::updateChannel方法, 来更新channel
+// 如果是新的Channel (没有index)
+// 创建一个pollfd来管理它, 包括fd/events/revents
+// 把pollfd放到队列中
+// 生成一个channel的index, 赋值给channel, 用作标记
+// 把channel放到队列中
+// 如果不是新的channel (已经有了index)
+// 取出pfd来进行更新
+// 如果某个Channel暂时不关心任何事件, 就置为-1, 让poll忽略此项
 void PollPoller::updateChannel(Channel* channel)
 {
   Poller::assertInLoopThread();
@@ -121,7 +133,6 @@ void PollPoller::updateChannel(Channel* channel)
     {
       // ignore this pollfd
       // 如果某个Channel暂时不关心任何事件, 就置为-1, 让poll忽略此项
-      // 如果通道被设置为无任何事件，则将fd设置为负数，
       // 至于为什么至于设置，下文会解释
       pfd.fd = -channel->fd()-1;
     }
@@ -129,6 +140,12 @@ void PollPoller::updateChannel(Channel* channel)
 }
 
 // 移除通道
+// 由Channel::remove调用
+// 实际上是调用了EventLoop::removeChannel
+// 这个函数调用了Poller::removeChannel方法
+// 从Channel中取出index
+// 列表中删除fd
+// 列表中删除channel
 void PollPoller::removeChannel(Channel* channel)
 {
   Poller::assertInLoopThread();

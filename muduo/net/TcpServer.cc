@@ -43,6 +43,8 @@ TcpServer::TcpServer(EventLoop* loop,
 }
 
 // 析构的过程就是释放TcpConnection
+// 析构是主动断开连接
+// removeConnection是被动断开链接
 // KV映射 typedef std::map<string, TcpConnectionPtr> ConnectionMap connections_;
 TcpServer::~TcpServer()
 {

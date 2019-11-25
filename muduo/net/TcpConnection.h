@@ -79,7 +79,7 @@ class TcpConnection : noncopyable,
   // 关闭，里面有一定的处理逻辑
   void shutdown(); // NOT thread safe, no simultaneous calling
   // void shutdownAndForceCloseAfter(double seconds); // NOT thread safe, no simultaneous calling
-  // 强行关闭, 最终调用handleClose()
+  // 强行关闭, 调用forceCloseInLoop, 最终调用handleClose()
   void forceClose();
   void forceCloseWithDelay(double seconds);
   // 设置tcpNoDelay
@@ -149,7 +149,10 @@ class TcpConnection : noncopyable,
   // 被动关闭连接也是在这里, 即read返回值为0
   void handleRead(Timestamp receiveTime);
   void handleWrite();
-  // 强行关闭, 由forceClose调用
+  // 连接关闭
+  // 两个地方会调用
+  // 1是handleRead, 如果收到的消息为0, 关闭连接
+  // 2是forceClose()强行关闭
   // 最主要就是调用closeCallback_
   // 这个cb是TcpServer::removeConnection
   void handleClose();

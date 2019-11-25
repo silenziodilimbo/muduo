@@ -56,7 +56,7 @@ TcpConnection::TcpConnection(EventLoop* loop,
     state_(kConnecting),
     reading_(true),
     // 封装sockfd为Socket。
-    // TcpConnection没有建立连接得功能, 在构造函数中会传入已经建立好的socket fd, 无论是TcpServer被动还是主动的连接
+    // TcpConnection没有建立连接的功能, 在构造函数中会传入已经建立好的socket fd, 无论是TcpServer被动还是主动的连接
     socket_(new Socket(sockfd)),
     // 利用loop和sockfd，创建一个通道。
     channel_(new Channel(loop, sockfd)),
@@ -104,6 +104,7 @@ string TcpConnection::getTcpInfoString() const
   return buf;
 }
 
+// 最终是sendInLoop
 void TcpConnection::send(const void* data, int len)
 {
   send(StringPiece(static_cast<const char*>(data), len));
@@ -162,11 +163,15 @@ void TcpConnection::sendInLoop(const StringPiece& message)
   sendInLoop(message.data(), message.size());
 }
 
-// 发送数据重点函数
+// 发送数据真正的函数
+// 一次性发完
+// 或者存在outerBuffer中, 等待回调(handleWrite)来发送
 void TcpConnection::sendInLoop(const void* data, size_t len)
 {
   loop_->assertInLoopThread();
+  // 已经发送的数据
   ssize_t nwrote = 0;
+  // 剩下要发送的数据
   size_t remaining = len;
   bool faultError = false;
   if (state_ == kDisconnected)
@@ -178,12 +183,13 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
   if (!channel_->isWriting() && outputBuffer_.readableBytes() == 0)
   {
     // 如果通道没在写数据，同时输出缓存是空的
-    // 则直接往fd中写数据，即发送
+    // 则直接往channel的fd中写数据，即发送
     // 如果当前outputBuffer_有待发送的数据, 那么就不能先尝试发送了, 这会造成数据乱序
     nwrote = sockets::write(channel_->fd(), data, len);
+    // 发送数据 >= 0
     if (nwrote >= 0)
     {
-      // 发送数据 >= 0
+      // 剩下的数据
       remaining = len - nwrote;
       if (remaining == 0 && writeCompleteCallback_)
       {
@@ -213,7 +219,10 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
   assert(remaining <= len);
   if (!faultError && remaining > 0)
   {
+    // 往outputBuffer后面添加数据
+    // 当前outputBuffer里面已经有的数据
     size_t oldLen = outputBuffer_.readableBytes();
+    // 判断当前outputBuffer已经有的+准备添加的的
     if (oldLen + remaining >= highWaterMark_
         && oldLen < highWaterMark_
         && highWaterMarkCallback_)
@@ -227,8 +236,13 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
     outputBuffer_.append(static_cast<const char*>(data)+nwrote, remaining);
     if (!channel_->isWriting())
     {
-      // 将通道置成可写状态。这样当通道活跃时，
-      // 就好调用TcpConnection的可写方法。
+      // 将通道置成可写状态。
+      // 给channel添加一个可写事件
+      // 会一路发送到Poller中, 保存在pfd中
+      // 这样当通道活跃时，
+      // Poller会调用Channel的handlerEvent
+      // 进而调用Channel的writeCallback
+      // 也就是TcpConnection的handleWrite
       // 对实时要求高的数据，这种处理方法可能有一定的延时。
       channel_->enableWriting();
     }
@@ -236,6 +250,7 @@ void TcpConnection::sendInLoop(const void* data, size_t len)
 }
 
 // 关闭"写"方向的连接,而不关闭"读"方面的连接
+// 会调用shutdownInLoop
 // 关闭动作，如果状态是连接，
 // 则要调用下关闭动作。
 void TcpConnection::shutdown()
@@ -250,6 +265,7 @@ void TcpConnection::shutdown()
   }
 }
 
+// shutdown()调用
 // a、通道不再写数据，则直接关闭写
 // b、通道若处于写数据状态，则不做
 //   处理，留给后面处理。
@@ -289,6 +305,7 @@ void TcpConnection::shutdownInLoop()
 //                        &TcpConnection::forceCloseInLoop));
 // }
 
+// 调用forceCloseInLoop, 最终调用handleClose()
 void TcpConnection::forceClose()
 {
   // FIXME: use compare and swap
@@ -426,7 +443,9 @@ void TcpConnection::handleRead(Timestamp receiveTime)
   if (n > 0)
   {
     // a、读取数据大于0，调用下回调
-    // messageCallback_ 是用户set的, 也就是用户在main函数中, server.setMessageCallback
+    // messageCallback_ 用户设置回调给TcpServer
+    // TcpServer设置回调给TcpConnection
+    // TcpConnection设置回调给Channel    
     messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
   }
   else if (n == 0)
@@ -444,7 +463,11 @@ void TcpConnection::handleRead(Timestamp receiveTime)
 }
 
 // 回调调用可写函数
-// 该函数用于强行关闭连接
+// 两个作用
+// 1是发送outputBuffer里面的内容
+// 当send发送时, 没有一次性发送完毕
+// 会把剩余数据存入outerBuffer中, 同时通过Channel可写信号, 经过Poller调用Channel::handlerEvent, 最终调用handleWrite
+// 2是发送0, 用于强行关闭连接
 // 一般而言,当对方read()到0字节之后,会主动关闭连接(无论是shutdownWrite()还是close())
 // 但如果对方故意不关闭,muduo的连接就会一直半开着,消耗系统资源
 // 所以必要时可以调用handleWrite来强行关闭连接
@@ -454,24 +477,29 @@ void TcpConnection::handleWrite()
   // 通道可写才进入
   if (channel_->isWriting())
   {
-    // 写缓存里所有数据   
+    // 作用1 首先发送outputBuffer里面所有数据   
     size_t n = sockets::write(channel_->fd(),
                                outputBuffer_.peek(),
                                outputBuffer_.readableBytes());
     if (n > 0)
     {
+      // 发送完毕后, 把outputBuffer里面数据删除
       // 发送了多少数据，设置Buffer索引，
       // 当外部调用TcpConnection::shutdown时也不直接关闭
       // 要等数据发送完了之后再关闭。
       outputBuffer_.retrieve(n);
+
+      // 如果可读的数据量为0，这里的可读是针对系统发送函数来说的，不是针对用户
+      // 如果对于系统发送函数来说，可读的数据量为0，表示所有数据都被发送完毕了，即写完成了
+      // 如果Buffer可读数据为0表示都已经发送完毕。
+      // 关闭通道的写状态。不再监听该套接字上的可写事件
       if (outputBuffer_.readableBytes() == 0)
       {
-        // 如果Buffer可读数据为0表示都已经发送完毕。
-        // 关闭通道的写状态。
         channel_->disableWriting();
+        // 如果有写完成回调函数，就调用下。
         if (writeCompleteCallback_)
         {
-          // 如果有写完成回调函数，就调用下。
+          // 在IO线程中执行
           loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
         }
         // 如果状态已经是断开中，
@@ -500,7 +528,9 @@ void TcpConnection::handleWrite()
 }
 
 // 连接关闭
-// 强行关闭, 由forceClose调用
+// 两个地方会调用
+// 1是handleRead, 如果收到的消息为0, 关闭连接
+// 2是forceClose()强行关闭
 // 最主要就是调用closeCallback_
 // 这个cb是TcpServer::removeConnection
 // 这里fd不关闭，fd是外部传入的
